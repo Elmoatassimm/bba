@@ -62,4 +62,20 @@ class User extends Authenticatable
     {
         return $this->hasMany(QuizAttempt::class);
     }
+
+    /**
+     * Get the video summaries for the user.
+     */
+    public function videoSummaries(): HasMany
+    {
+        return $this->hasMany(VideoSummary::class);
+    }
+
+    /**
+     * Get the course PDFs for the user.
+     */
+    public function coursePdfs(): HasMany
+    {
+        return $this->hasMany(CoursePdf::class);
+    }
 }

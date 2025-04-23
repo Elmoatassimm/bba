@@ -114,6 +114,7 @@ class GeminiAIService implements AIServiceInterface
         }
     }
 
+
     /**
      * Format a diagram result for inclusion in a summary
      *
@@ -137,7 +138,6 @@ class GeminiAIService implements AIServiceInterface
 
         return $formattedSection;
     }
-
     /**
      * Create an alternative prompt for summarization when the first attempt yields generic results
      *
@@ -441,9 +441,11 @@ PROMPT;
             ]
         ];
 
+        // For development purposes, we're disabling SSL verification
+        // In production, you should properly configure SSL certificates
         $response = Http::withHeaders([
             'Content-Type' => 'application/json'
-        ])->post($url, $payload);
+        ])->withoutVerifying()->post($url, $payload);
 
         if (!$response->successful()) {
             $errorBody = $response->body();
@@ -697,6 +699,25 @@ PROMPT;
     }
 
     /**
+<<<<<<< HEAD
+     * Summarize a YouTube video using Gemini LearnLM 2.0 Flash Model
+     *
+     * @param string $videoUrl The URL of the YouTube video
+     * @return array The summary, key points, and actionable takeaways of the video
+     */
+    public function summarizeYouTubeVideo(string $videoUrl): array
+    {
+        try {
+            // Extract the video ID from the URL
+            $videoId = $this->extractYouTubeVideoId($videoUrl);
+
+            if (empty($videoId)) {
+                throw new Exception("Could not extract video ID from the URL: {$videoUrl}");
+            }
+
+            // Create the prompt for video summarization
+            $prompt = $this->createVideoSummarizationPrompt($videoUrl, $videoId);
+=======
      * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file
      *
      * @param string $filePath The path to the PDF file
@@ -723,10 +744,24 @@ PROMPT;
 
             // Create the prompt for diagram generation
             $prompt = $this->createDiagramGenerationPrompt($text, $diagramType);
+>>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 
             // Call Gemini API
             $response = $this->callGeminiApi($prompt);
 
+<<<<<<< HEAD
+            // Parse the response to extract summary, key points, and actionable takeaways
+            return $this->parseVideoSummaryResponse($response);
+        } catch (Exception $e) {
+            Log::error('Error summarizing YouTube video with Gemini: ' . $e->getMessage());
+
+            // Return a structured error response
+            return [
+                'summary' => "Sorry, there was an error summarizing the video: {$e->getMessage()}. Please try again later or with a different video URL.",
+                'key_points' => [],
+                'actionable_takeaways' => []
+            ];
+=======
             // Parse the response to extract the Mermaid diagram code
             $result = $this->parseDiagramResponse($response, $diagramType);
 
@@ -747,10 +782,70 @@ PROMPT;
         } catch (Exception $e) {
             Log::error('Error generating diagram with Gemini: ' . $e->getMessage());
             throw $e;
+>>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
         }
     }
 
     /**
+<<<<<<< HEAD
+     * Extract the YouTube video ID from a URL
+     *
+     * @param string $url The YouTube video URL
+     * @return string|null The video ID or null if not found
+     */
+    protected function extractYouTubeVideoId(string $url): ?string
+    {
+        // Regular expression to match YouTube video IDs from various URL formats
+        $pattern = '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i';
+
+        if (preg_match($pattern, $url, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Create a prompt for YouTube video summarization
+     *
+     * @param string $videoUrl The YouTube video URL
+     * @param string $videoId The YouTube video ID
+     * @return string The prompt
+     */
+    protected function createVideoSummarizationPrompt(string $videoUrl, string $videoId): string
+    {
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a comprehensive, educational summary of a YouTube video that follows learning science principles. You will manage cognitive load by presenting relevant, well-structured information, and stimulate curiosity by making the content engaging.
+
+I need you to create a detailed, educational summary of the following YouTube video: {$videoUrl}
+
+Instructions:
+1. Analyze the video content based on the URL and video ID ({$videoId})
+2. Create a concise summary (3-5 sentences) that captures the main purpose and content of the video
+3. Extract 5-7 key points or concepts presented in the video
+4. Identify 3-5 actionable takeaways or practical applications from the video
+5. Focus on educational value, explaining core ideas or skills taught in the video
+6. Tailor the summary for students who want to learn efficiently from the video
+7. Organize the information in a clear, structured format
+8. Use bullet points for key points and actionable takeaways
+
+Format your response as a JSON object with the following structure:
+{
+  "summary": "A concise summary of the video's main content and purpose",
+  "key_points": [
+    "Key point 1",
+    "Key point 2",
+    "etc."
+  ],
+  "actionable_takeaways": [
+    "Actionable takeaway 1",
+    "Actionable takeaway 2",
+    "etc."
+  ]
+}
+
+Please provide a comprehensive, educational summary of this YouTube video in the specified JSON format.
+=======
      * Create a prompt for diagram generation using LearnLM 2.0 Flash Model
      *
      * @param string $text The text to generate a diagram from
@@ -784,10 +879,89 @@ Provide your response in the following format:
 3. A brief explanation of how to interpret the diagram (2-3 sentences)
 
 Make sure the Mermaid code is syntactically correct and properly formatted.
+>>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 PROMPT;
     }
 
     /**
+<<<<<<< HEAD
+     * Parse the response from Gemini API to extract video summary components
+     *
+     * @param string $response The response from Gemini API
+     * @return array The parsed summary, key points, and actionable takeaways
+     */
+    protected function parseVideoSummaryResponse(string $response): array
+    {
+        try {
+            // Try to extract JSON from the response
+            if (preg_match('/\{\s*"summary".*\}\s*/s', $response, $matches)) {
+                $jsonStr = $matches[0];
+                $data = json_decode($jsonStr, true);
+
+                if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+                    // Ensure all required fields are present
+                    if (isset($data['summary']) && isset($data['key_points']) && isset($data['actionable_takeaways'])) {
+                        return [
+                            'summary' => $data['summary'],
+                            'key_points' => $data['key_points'],
+                            'actionable_takeaways' => $data['actionable_takeaways']
+                        ];
+                    }
+                }
+            }
+
+            // If JSON parsing fails, try to extract structured content
+            $summary = '';
+            $keyPoints = [];
+            $actionableTakeaways = [];
+
+            // Extract summary (usually the first paragraph)
+            if (preg_match('/(?:Summary|Video Summary):\s*(.+?)(?=\n\n|\r\n\r\n|Key Points|Main Points|$)/s', $response, $matches)) {
+                $summary = trim($matches[1]);
+            }
+
+            // Extract key points
+            if (preg_match('/(?:Key Points|Main Points):\s*(.+?)(?=\n\n|\r\n\r\n|Actionable Takeaways|Practical Applications|$)/s', $response, $matches)) {
+                $pointsText = $matches[1];
+                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $pointsText, $pointMatches);
+                if (!empty($pointMatches[1])) {
+                    $keyPoints = array_map('trim', $pointMatches[1]);
+                }
+            }
+
+            // Extract actionable takeaways
+            if (preg_match('/(?:Actionable Takeaways|Practical Applications):\s*(.+?)(?=\n\n|\r\n\r\n|$)/s', $response, $matches)) {
+                $takeawaysText = $matches[1];
+                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $takeawaysText, $takeawayMatches);
+                if (!empty($takeawayMatches[1])) {
+                    $actionableTakeaways = array_map('trim', $takeawayMatches[1]);
+                }
+            }
+
+            // If we couldn't extract structured content, use the whole response as the summary
+            if (empty($summary) && empty($keyPoints) && empty($actionableTakeaways)) {
+                return [
+                    'summary' => trim($response),
+                    'key_points' => [],
+                    'actionable_takeaways' => []
+                ];
+            }
+
+            return [
+                'summary' => $summary,
+                'key_points' => $keyPoints,
+                'actionable_takeaways' => $actionableTakeaways
+            ];
+        } catch (Exception $e) {
+            Log::error('Error parsing video summary response: ' . $e->getMessage());
+            return [
+                'summary' => 'Error parsing the AI response. Please try again.',
+                'key_points' => [],
+                'actionable_takeaways' => []
+            ];
+        }
+    }
+=======
      * Create an alternative prompt for diagram generation when the first attempt fails
      *
      * @param string $text The text to generate a diagram from
@@ -963,4 +1137,5 @@ PROMPT;
 
         return $result;
     }
+>>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 }

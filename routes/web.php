@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\CoursePdfController;
 use App\Http\Controllers\PdfDocumentController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\VideoSummaryController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -27,6 +29,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('quizzes/{quiz}/take', [QuizController::class, 'start'])->name('quizzes.take');
     Route::post('quizzes/{quiz}/submit', [QuizController::class, 'submit'])->name('quizzes.submit');
     Route::get('quiz-attempts/{quizAttempt}/results', [QuizController::class, 'results'])->name('quizzes.results');
+
+    // Video Summary routes
+    Route::resource('video-summaries', VideoSummaryController::class);
+    Route::post('video-summaries/{videoSummary}/toggle-save', [VideoSummaryController::class, 'toggleSave'])->name('video-summaries.toggle-save');
+
+    // Course PDF routes
+    Route::get('course-pdfs', [CoursePdfController::class, 'index'])->name('course-pdfs.index');
+    Route::get('course-pdfs/saved', [CoursePdfController::class, 'savedPdfs'])->name('course-pdfs.saved');
+    Route::get('course-pdfs/{courseId}', [CoursePdfController::class, 'show'])->name('course-pdfs.show');
+    Route::post('course-pdfs/save', [CoursePdfController::class, 'savePdf'])->name('course-pdfs.save');
+    Route::delete('course-pdfs/{coursePdf}', [CoursePdfController::class, 'removeSavedPdf'])->name('course-pdfs.remove');
+    Route::get('course-pdfs/view/{coursePdf}', [CoursePdfController::class, 'viewSavedPdf'])->name('course-pdfs.view');
+    Route::post('course-pdfs/auth', [CoursePdfController::class, 'getResourcesWithAuth'])->name('course-pdfs.auth');
 });
 
 require __DIR__.'/settings.php';

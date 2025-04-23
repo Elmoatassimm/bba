@@ -22,6 +22,14 @@ interface AIServiceInterface
     public function generateQuiz(string $filePath, int $numQuestions = 5): array;
 
     /**
+     * Summarize a YouTube video.
+     *
+     * @param string $videoUrl The URL of the YouTube video
+     * @return array The summary, key points, and actionable takeaways of the video
+     */
+    public function summarizeYouTubeVideo(string $videoUrl): array;
+
+    /**
      * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file.
      *
      * @param string $filePath The path to the PDF file

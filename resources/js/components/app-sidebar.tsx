@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, FileText, GraduationCap } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, FileText, GraduationCap, Youtube, BookOpen as BookOpenIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -19,9 +19,19 @@ const mainNavItems: NavItem[] = [
         icon: FileText,
     },
     {
+        title: 'Course PDFs',
+        href: '/course-pdfs',
+        icon: BookOpenIcon,
+    },
+    {
         title: 'Quizzes',
         href: '/quizzes',
         icon: GraduationCap,
+    },
+    {
+        title: 'Video Summaries',
+        href: '/video-summaries',
+        icon: Youtube,
     },
 ];
 
