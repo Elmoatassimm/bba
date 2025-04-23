@@ -252,4 +252,80 @@
     .markdown-content td {
         @apply px-3 py-2 whitespace-nowrap text-sm;
     }
+
+    /* Expanded diagram styles */
+    .expanded-diagram .mermaid-diagram {
+        @apply max-w-full overflow-auto;
+    }
+
+    .expanded-diagram .mermaid svg {
+        @apply max-h-[80vh] max-w-full;
+    }
+
+    /* Mermaid renderer styles */
+    .mermaid-renderer {
+        @apply relative overflow-hidden rounded-md;
+    }
+
+    .mermaid-renderer svg {
+        @apply max-w-full;
+    }
+
+    /* Improve diagram node styles */
+    .mermaid .node rect,
+    .mermaid .node circle,
+    .mermaid .node ellipse,
+    .mermaid .node polygon,
+    .mermaid .node path {
+        @apply stroke-gray-400 dark:stroke-gray-600 fill-white dark:fill-gray-800;
+    }
+
+    /* Improve diagram text styles */
+    .mermaid .label {
+        @apply text-gray-900 dark:text-gray-100 font-medium;
+    }
+
+    /* Improve diagram edge styles */
+    .mermaid .edgePath .path {
+        @apply stroke-gray-500 dark:stroke-gray-400;
+    }
+
+    /* Improve diagram arrow styles */
+    .mermaid .arrowheadPath {
+        @apply fill-gray-500 dark:fill-gray-400;
+    }
+
+    /* Improve cluster styles */
+    .mermaid .cluster rect {
+        @apply fill-gray-50 dark:fill-gray-900 stroke-gray-300 dark:stroke-gray-700;
+    }
+
+    /* Mindmap specific styles */
+    .mermaid .mindmap-node > rect {
+        @apply fill-white dark:fill-gray-800 stroke-gray-400 dark:stroke-gray-600;
+    }
+
+    .mermaid .mindmap-node > circle {
+        @apply fill-white dark:fill-gray-800 stroke-gray-400 dark:stroke-gray-600;
+    }
+
+    .mermaid .mindmap-node > ellipse {
+        @apply fill-white dark:fill-gray-800 stroke-gray-400 dark:stroke-gray-600;
+    }
+
+    .mermaid .mindmap-node > polygon {
+        @apply fill-white dark:fill-gray-800 stroke-gray-400 dark:stroke-gray-600;
+    }
+
+    .mermaid .mindmap-node > path {
+        @apply stroke-gray-400 dark:stroke-gray-600;
+    }
+
+    .mermaid .mindmap-node text {
+        @apply text-gray-900 dark:text-gray-100 font-medium;
+    }
+
+    .mermaid .mindmap-edge {
+        @apply stroke-gray-500 dark:stroke-gray-400;
+    }
 }

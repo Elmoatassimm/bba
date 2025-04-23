@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import MermaidDiagram from '@/components/MermaidDiagram.jsx';
-import MarkdownRenderer from '@/components/MarkdownRenderer.jsx';
+import MermaidDiagram from '@/components/MermaidDiagram';
+import MarkdownRenderer from '@/components/MarkdownRenderer';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -264,13 +264,15 @@ export default function Show({ document, pdfUrl }: Props) {
                                                     <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{diagramData.explanation}</p>
                                                 )}
 
-                                                <MermaidDiagram
-                                                    chart={diagramData.diagram_code}
-                                                    config={{
-                                                        theme: window.document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-                                                        fontFamily: 'Instrument Sans, sans-serif'
-                                                    }}
-                                                />
+                                                <div className="relative rounded-md border p-4 dark:border-gray-700">
+                                                    <MermaidDiagram
+                                                        chart={diagramData.diagram_code}
+                                                        config={{
+                                                            theme: window.document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                                                            fontFamily: 'Instrument Sans, sans-serif'
+                                                        }}
+                                                    />
+                                                </div>
 
                                                 {diagramData.interpretation && (
                                                     <p className="mt-4 text-sm italic text-gray-600 dark:text-gray-400">
