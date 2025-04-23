@@ -699,7 +699,6 @@ PROMPT;
     }
 
     /**
-<<<<<<< HEAD
      * Summarize a YouTube video using Gemini LearnLM 2.0 Flash Model
      *
      * @param string $videoUrl The URL of the YouTube video
@@ -717,7 +716,25 @@ PROMPT;
 
             // Create the prompt for video summarization
             $prompt = $this->createVideoSummarizationPrompt($videoUrl, $videoId);
-=======
+
+            // Call Gemini API
+            $response = $this->callGeminiApi($prompt);
+
+            // Parse the response to extract summary, key points, and actionable takeaways
+            return $this->parseVideoSummaryResponse($response);
+        } catch (Exception $e) {
+            Log::error('Error summarizing YouTube video with Gemini: ' . $e->getMessage());
+
+            // Return a structured error response
+            return [
+                'summary' => "Sorry, there was an error summarizing the video: {$e->getMessage()}. Please try again later or with a different video URL.",
+                'key_points' => [],
+                'actionable_takeaways' => []
+            ];
+        }
+    }
+
+    /**
      * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file
      *
      * @param string $filePath The path to the PDF file
@@ -744,24 +761,10 @@ PROMPT;
 
             // Create the prompt for diagram generation
             $prompt = $this->createDiagramGenerationPrompt($text, $diagramType);
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 
             // Call Gemini API
             $response = $this->callGeminiApi($prompt);
 
-<<<<<<< HEAD
-            // Parse the response to extract summary, key points, and actionable takeaways
-            return $this->parseVideoSummaryResponse($response);
-        } catch (Exception $e) {
-            Log::error('Error summarizing YouTube video with Gemini: ' . $e->getMessage());
-
-            // Return a structured error response
-            return [
-                'summary' => "Sorry, there was an error summarizing the video: {$e->getMessage()}. Please try again later or with a different video URL.",
-                'key_points' => [],
-                'actionable_takeaways' => []
-            ];
-=======
             // Parse the response to extract the Mermaid diagram code
             $result = $this->parseDiagramResponse($response, $diagramType);
 
@@ -782,12 +785,10 @@ PROMPT;
         } catch (Exception $e) {
             Log::error('Error generating diagram with Gemini: ' . $e->getMessage());
             throw $e;
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
         }
     }
 
     /**
-<<<<<<< HEAD
      * Extract the YouTube video ID from a URL
      *
      * @param string $url The YouTube video URL
@@ -845,7 +846,10 @@ Format your response as a JSON object with the following structure:
 }
 
 Please provide a comprehensive, educational summary of this YouTube video in the specified JSON format.
-=======
+PROMPT;
+    }
+
+    /**
      * Create a prompt for diagram generation using LearnLM 2.0 Flash Model
      *
      * @param string $text The text to generate a diagram from
@@ -879,12 +883,10 @@ Provide your response in the following format:
 3. A brief explanation of how to interpret the diagram (2-3 sentences)
 
 Make sure the Mermaid code is syntactically correct and properly formatted.
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 PROMPT;
     }
 
     /**
-<<<<<<< HEAD
      * Parse the response from Gemini API to extract video summary components
      *
      * @param string $response The response from Gemini API
@@ -961,7 +963,8 @@ PROMPT;
             ];
         }
     }
-=======
+
+    /**
      * Create an alternative prompt for diagram generation when the first attempt fails
      *
      * @param string $text The text to generate a diagram from
@@ -1137,5 +1140,4 @@ PROMPT;
 
         return $result;
     }
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 }
