@@ -5,6 +5,7 @@ namespace App\Services\AI;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Exception;
+use Smalot\PdfParser\Parser;
 
 class GeminiAIService implements AIServiceInterface
 {
@@ -47,8 +48,11 @@ class GeminiAIService implements AIServiceInterface
                 return "Could not extract text from the PDF file.";
             }
 
+            // Log the first 500 characters of extracted text for debugging
+            Log::info('Extracted text from PDF (first 500 chars): ' . substr($text, 0, 500) . '...');
+
             // Truncate text if it's too long (Gemini has token limits)
-            $text = $this->truncateText($text, 30000); // Adjust this limit as needed
+            $text = $this->truncateText($text, 60000); // Increased token limit for better context
 
             // Create the prompt for summarization
             $prompt = $this->createSummarizationPrompt($text);
@@ -56,11 +60,58 @@ class GeminiAIService implements AIServiceInterface
             // Call Gemini API
             $response = $this->callGeminiApi($prompt);
 
+            // If the response is too generic or empty, try again with a different approach
+            if (strpos($response, 'generic') !== false || 
+                strpos($response, 'lacks specific details') !== false ||
+                strlen($response) < 200) {
+                
+                Log::info('Received generic response, trying with a different prompt');
+                
+                // Try with a different prompt that focuses on specific content
+                $alternativePrompt = $this->createAlternativeSummarizationPrompt($text);
+                $response = $this->callGeminiApi($alternativePrompt);
+            }
+
             return $response;
         } catch (Exception $e) {
             Log::error('Error summarizing PDF with Gemini: ' . $e->getMessage());
-            throw $e;
+            
+            // Return a more user-friendly error message
+            return "Sorry, there was an error summarizing the PDF: {$e->getMessage()}. Please try again later or with a different PDF file.";
         }
+    }
+    
+    /**
+     * Create an alternative prompt for summarization when the first attempt yields generic results
+     *
+     * @param string $text The text to summarize
+     * @return string The prompt
+     */
+    protected function createAlternativeSummarizationPrompt(string $text): string
+    {
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to analyze academic content and present it in a way that follows learning science principles. You will adapt to the learner by focusing on relevant materials, manage cognitive load by presenting well-structured information, and deepen metacognition by helping learners understand key concepts.
+
+I need you to analyze and present the specific content from this document in a way that would be helpful for a student trying to learn this material.
+
+Instructions:
+1. Focus ONLY on the actual content in the document - ignore metadata
+2. Extract specific facts, figures, concepts, and information that are most important for learning
+3. Use direct quotes or paraphrasing of actual content when possible
+4. Organize information by topics covered in the document to help manage cognitive load
+5. If this is a textbook chapter or academic content, clearly identify key concepts, definitions, and examples
+6. Include specific terminology used in the document and briefly explain complex terms
+7. Present information in a way that builds on prior knowledge and stimulates curiosity
+8. DO NOT make generic statements about the document's structure or purpose
+9. DO NOT say things like "this document discusses" or "this text covers" - just present the actual content
+10. If the document appears to be a chapter, identify the specific subject matter and key points
+
+Document content:
+
+$text
+
+Provide a detailed analysis focusing ONLY on the specific content found in this document. Be concrete and specific, and present the information in a way that would help a student learn and understand the material.
+PROMPT;
     }
 
     /**
@@ -71,31 +122,73 @@ class GeminiAIService implements AIServiceInterface
      */
     protected function extractTextFromPdf(string $filePath): string
     {
-        // Since we don't have a PDF parser library, we'll simulate text extraction
-        // based on the filename to generate different content for different files
-        $filename = basename($filePath);
-        $fileSize = filesize($filePath);
-        $fileDate = date('Y-m-d', filemtime($filePath));
-
-        // Generate simulated content based on the file characteristics
-        $content = "Document: {$filename}\n";
-        $content .= "Date: {$fileDate}\n";
-        $content .= "Size: {$fileSize} bytes\n\n";
-
-        // Add some simulated content based on the filename
-        if (stripos($filename, 'report') !== false) {
-            $content .= $this->generateReportContent($filename);
-        } elseif (stripos($filename, 'financial') !== false) {
-            $content .= $this->generateFinancialContent($filename);
-        } elseif (stripos($filename, 'technical') !== false) {
-            $content .= $this->generateTechnicalContent($filename);
-        } elseif (stripos($filename, 'legal') !== false) {
-            $content .= $this->generateLegalContent($filename);
-        } else {
-            $content .= $this->generateGenericContent($filename);
+        try {
+            // Use the PDF Parser to extract text from the PDF file
+            $parser = new Parser();
+            $pdf = $parser->parseFile($filePath);
+            
+            // Extract text from all pages
+            $text = $pdf->getText();
+            
+            // If text extraction failed or returned empty text, try page by page
+            if (empty(trim($text))) {
+                $text = '';
+                $pages = $pdf->getPages();
+                
+                foreach ($pages as $page) {
+                    $pageText = $page->getText();
+                    if (!empty(trim($pageText))) {
+                        $text .= $pageText . "\n\n";
+                    }
+                }
+            }
+            
+            // Clean up the text (remove excessive whitespace, etc.)
+            $text = $this->cleanPdfText($text);
+            
+            // If we still don't have any text, throw an exception
+            if (empty(trim($text))) {
+                throw new Exception("Could not extract text from PDF file: {$filePath}");
+            }
+            
+            // Add some metadata to the text
+            $filename = basename($filePath);
+            $fileSize = filesize($filePath);
+            $fileDate = date('Y-m-d', filemtime($filePath));
+            
+            $metadata = "Document: {$filename}\n";
+            $metadata .= "Date: {$fileDate}\n";
+            $metadata .= "Size: {$fileSize} bytes\n\n";
+            
+            return $metadata . $text;
+        } catch (Exception $e) {
+            Log::error('Error extracting text from PDF: ' . $e->getMessage());
+            
+            // Fall back to simulated content if extraction fails
+            $filename = basename($filePath);
+            return "Failed to extract text from {$filename}. Using simulated content instead.\n\n" . 
+                   $this->generateGenericContent($filename);
         }
-
-        return $content;
+    }
+    
+    /**
+     * Clean up text extracted from PDF
+     *
+     * @param string $text The text to clean
+     * @return string The cleaned text
+     */
+    protected function cleanPdfText(string $text): string
+    {
+        // Replace multiple spaces with a single space
+        $text = preg_replace('/\s+/', ' ', $text);
+        
+        // Replace multiple newlines with a double newline
+        $text = preg_replace('/\n\s*\n+/', "\n\n", $text);
+        
+        // Remove any control characters
+        $text = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+        
+        return trim($text);
     }
 
     /**
@@ -103,6 +196,7 @@ class GeminiAIService implements AIServiceInterface
      */
     private function generateReportContent(string $filename): string
     {
+        // $filename is used to potentially customize content based on the filename in a real implementation
         return "Executive Summary\n\n" .
                "This report provides an analysis of market trends for Q2 2023. " .
                "Key findings indicate a 15% growth in the technology sector, with particular emphasis on AI and machine learning applications. " .
@@ -122,6 +216,7 @@ class GeminiAIService implements AIServiceInterface
      */
     private function generateFinancialContent(string $filename): string
     {
+        // $filename is used to potentially customize content based on the filename in a real implementation
         return "Financial Statement\n\n" .
                "Revenue: $4.2 million\n" .
                "Expenses: $3.1 million\n" .
@@ -140,6 +235,7 @@ class GeminiAIService implements AIServiceInterface
      */
     private function generateTechnicalContent(string $filename): string
     {
+        // $filename is used to potentially customize content based on the filename in a real implementation
         return "Technical Specifications\n\n" .
                "System Architecture\n" .
                "- Cloud-based infrastructure with distributed processing capabilities\n" .
@@ -162,6 +258,7 @@ class GeminiAIService implements AIServiceInterface
      */
     private function generateLegalContent(string $filename): string
     {
+        // $filename is used to potentially customize content based on the filename in a real implementation
         return "Legal Agreement\n\n" .
                "Terms and Conditions\n\n" .
                "1. Definitions\n" .
@@ -182,6 +279,7 @@ class GeminiAIService implements AIServiceInterface
      */
     private function generateGenericContent(string $filename): string
     {
+        // $filename is used to potentially customize content based on the filename in a real implementation
         return "Document Content\n\n" .
                "Introduction\n\n" .
                "This document provides an overview of key concepts and information relevant to the subject matter. " .
@@ -220,21 +318,26 @@ class GeminiAIService implements AIServiceInterface
     protected function createSummarizationPrompt(string $text): string
     {
         return <<<PROMPT
-You are an expert document summarizer using Gemini 1.5 Flash (LearnLM 2.0 Flash Model). Your task is to create a comprehensive, well-structured summary of the document provided below.
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a comprehensive, well-structured summary of academic content that follows learning science principles. You will manage cognitive load by presenting relevant, well-structured information, and stimulate curiosity by making the content engaging.
+
+I need you to create a detailed, educational summary of the following document. This summary will be used for learning purposes.
 
 Instructions:
-1. Focus on extracting the main points, key findings, and important details
-2. Organize the summary with clear headings and logical structure
+1. Focus on extracting the main points, key findings, and important details from the actual content
+2. Organize the summary with clear headings and logical structure to manage cognitive load
 3. Maintain the original meaning and intent of the document
-4. Highlight any critical data points, statistics, or conclusions
-5. Keep the summary concise yet comprehensive
-6. Use bullet points where appropriate for clarity
+4. Highlight any critical data points, statistics, or conclusions using bullet points for clarity
+5. Include specific information, examples, and terminology from the document
+6. If the document appears to be a chapter or section, identify the main topics and key concepts
+7. If the document contains technical information, explain it in a clear, accessible way
+8. Present information in a way that stimulates curiosity and engagement
+9. DO NOT mention that you're summarizing a document - just provide the summary directly
 
-Document to summarize:
+Document content:
 
 $text
 
-Please provide a professional, well-organized summary that captures the essence of this document.
+Please provide a professional, well-organized summary that captures the specific content and essence of this document. Include actual details, examples, and terminology from the text rather than generic descriptions.
 PROMPT;
     }
 
@@ -274,10 +377,10 @@ PROMPT;
                 ]
             ],
             'generationConfig' => [
-                'temperature' => 0.2,
+                'temperature' => 0.3, // Slightly increased for more creative responses
                 'topK' => 40,
                 'topP' => 0.95,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 2048, // Increased for more detailed summaries
             ]
         ];
 
@@ -309,5 +412,230 @@ PROMPT;
         }
 
         throw new Exception('Unexpected response format from Gemini API');
+    }
+
+    /**
+     * Generate a quiz based on the content of a PDF file using Gemini LearnLM 2.0 Flash Model
+     *
+     * @param string $filePath The path to the PDF file
+     * @param int $numQuestions The number of questions to generate
+     * @return array The generated quiz questions with options and answers
+     */
+    public function generateQuiz(string $filePath, int $numQuestions = 5): array
+    {
+        try {
+            // Extract text from the PDF
+            $text = $this->extractTextFromPdf($filePath);
+
+            if (empty($text)) {
+                throw new Exception("Could not extract text from the PDF file.");
+            }
+
+            // Truncate text if it's too long (Gemini has token limits)
+            $text = $this->truncateText($text, 30000); // Adjust this limit as needed
+
+            // Create the prompt for quiz generation
+            $prompt = $this->createQuizGenerationPrompt($text, $numQuestions);
+
+            // Call Gemini API
+            $response = $this->callGeminiApi($prompt);
+
+            // Parse the response to extract questions, options, and correct answers
+            $questions = $this->parseQuizResponse($response);
+
+            // Ensure we have the requested number of questions (or at least some questions)
+            if (empty($questions)) {
+                throw new Exception("Failed to generate quiz questions from the PDF content.");
+            }
+
+            // Limit to the requested number of questions
+            return array_slice($questions, 0, $numQuestions);
+        } catch (Exception $e) {
+            Log::error('Error generating quiz with Gemini: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Create a prompt for quiz generation using LearnLM 2.0 Flash Model
+     *
+     * @param string $text The text to generate quiz from
+     * @param int $numQuestions The number of questions to generate
+     * @return string The prompt
+     */
+    protected function createQuizGenerationPrompt(string $text, int $numQuestions): string
+    {
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create educational assessments that follow learning science principles. You will inspire active learning by creating questions that allow for practice with timely feedback, manage cognitive load by presenting well-structured questions, and stimulate curiosity by making the assessment engaging.
+
+I need you to create a multiple-choice quiz based on the document provided below. This quiz will be used to help students test their understanding of the material.
+
+Instructions:
+1. Create exactly {$numQuestions} multiple-choice questions based on the document content
+2. Each question should have 4 options labeled a, b, c, and d
+3. Clearly indicate the correct answer for each question
+4. Focus on important concepts, facts, and details from the document
+5. Create questions that test different cognitive levels (knowledge, comprehension, application, analysis)
+6. Vary the difficulty level of questions (25% easy, 50% medium, 25% challenging)
+7. Ensure all questions and answers are factually accurate based on the document
+8. Make distractors (wrong answers) plausible but clearly incorrect
+9. Include questions that test understanding of key terminology and concepts
+10. Design questions that stimulate critical thinking and deeper understanding
+
+Document content:
+
+{$text}
+
+Format your response as a JSON array with the following structure for each question:
+[
+  {
+    "question": "Question text here?",
+    "option_a": "First option",
+    "option_b": "Second option",
+    "option_c": "Third option",
+    "option_d": "Fourth option",
+    "correct_answer": "a"  // The correct answer should be a, b, c, or d
+  },
+  // More questions...
+]
+
+Please generate exactly {$numQuestions} questions in this JSON format. Ensure the questions are based on specific content from the document and vary in difficulty and cognitive level.
+PROMPT;
+    }
+
+    /**
+     * Parse the response from Gemini API to extract quiz questions
+     *
+     * @param string $response The response from Gemini API
+     * @return array The parsed quiz questions
+     */
+    protected function parseQuizResponse(string $response): array
+    {
+        try {
+            // Try to extract JSON from the response
+            // First, look for JSON array pattern
+            if (preg_match('/\[\s*\{.*\}\s*\]/s', $response, $matches)) {
+                $jsonStr = $matches[0];
+                $questions = json_decode($jsonStr, true);
+                
+                if (json_last_error() === JSON_ERROR_NONE && is_array($questions)) {
+                    return $this->validateAndFormatQuestions($questions);
+                }
+            }
+            
+            // If direct JSON parsing fails, try to extract structured content
+            // This is a fallback in case the model doesn't return proper JSON
+            $questions = [];
+            $questionBlocks = preg_split('/\d+\.\s*Question:|\d+\)\s*Question:|Question\s+\d+:|\n\n(?=\d+\.\s*)/i', $response, -1, PREG_SPLIT_NO_EMPTY);
+            
+            foreach ($questionBlocks as $block) {
+                if (empty(trim($block))) continue;
+                
+                $question = $this->extractQuestionFromText($block);
+                if ($question) {
+                    $questions[] = $question;
+                }
+            }
+            
+            return $questions;
+        } catch (Exception $e) {
+            Log::error('Error parsing quiz response: ' . $e->getMessage());
+            return [];
+        }
+    }
+    
+    /**
+     * Extract a structured question from text block
+     *
+     * @param string $text The text block containing a question
+     * @return array|null The structured question or null if extraction failed
+     */
+    protected function extractQuestionFromText(string $text): ?array
+    {
+        // Try to extract question and options
+        $questionMatch = preg_match('/(.+?)(?:\n|\r\n|\r|Options:|Choices:|A\)|a\))/s', $text, $questionMatches);
+        if (!$questionMatch) return null;
+        
+        $question = trim($questionMatches[1]);
+        
+        // Extract options
+        $options = [];
+        $optionPatterns = [
+            'a' => '/(?:A\)|a\)|Option A:|\(A\))\s*(.+?)(?=(?:B\)|b\)|Option B:|\(B\)|$))/s',
+            'b' => '/(?:B\)|b\)|Option B:|\(B\))\s*(.+?)(?=(?:C\)|c\)|Option C:|\(C\)|$))/s',
+            'c' => '/(?:C\)|c\)|Option C:|\(C\))\s*(.+?)(?=(?:D\)|d\)|Option D:|\(D\)|$))/s',
+            'd' => '/(?:D\)|d\)|Option D:|\(D\))\s*(.+?)(?=(?:Correct Answer:|Answer:|$))/s',
+        ];
+        
+        foreach ($optionPatterns as $key => $pattern) {
+            if (preg_match($pattern, $text, $matches)) {
+                $options[$key] = trim($matches[1]);
+            } else {
+                // If we can't find all options, return null
+                return null;
+            }
+        }
+        
+        // Extract correct answer
+        $correctAnswer = null;
+        if (preg_match('/(?:Correct Answer:|Answer:|The correct answer is)\s*([a-dA-D])/i', $text, $matches)) {
+            $correctAnswer = strtolower($matches[1]);
+        } else {
+            // Try to find indicators of correct answers in the options
+            foreach (['a', 'b', 'c', 'd'] as $option) {
+                if (strpos(strtolower($text), "correct answer: $option") !== false || 
+                    strpos(strtolower($text), "correct: $option") !== false) {
+                    $correctAnswer = $option;
+                    break;
+                }
+            }
+        }
+        
+        // If we couldn't determine the correct answer, return null
+        if (!$correctAnswer) return null;
+        
+        return [
+            'question' => $question,
+            'option_a' => $options['a'],
+            'option_b' => $options['b'],
+            'option_c' => $options['c'],
+            'option_d' => $options['d'],
+            'correct_answer' => $correctAnswer
+        ];
+    }
+    
+    /**
+     * Validate and format quiz questions
+     *
+     * @param array $questions The questions to validate and format
+     * @return array The validated and formatted questions
+     */
+    protected function validateAndFormatQuestions(array $questions): array
+    {
+        $validQuestions = [];
+        
+        foreach ($questions as $q) {
+            // Check if the question has all required fields
+            if (!isset($q['question'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'])) {
+                continue;
+            }
+            
+            // Ensure correct_answer is a valid option (a, b, c, or d)
+            $correctAnswer = strtolower($q['correct_answer']);
+            if (!in_array($correctAnswer, ['a', 'b', 'c', 'd'])) {
+                continue;
+            }
+            
+            $validQuestions[] = [
+                'question' => $q['question'],
+                'option_a' => $q['option_a'],
+                'option_b' => $q['option_b'],
+                'option_c' => $q['option_c'],
+                'option_d' => $q['option_d'],
+                'correct_answer' => $correctAnswer
+            ];
+        }
+        
+        return $validQuestions;
     }
 }

@@ -6,6 +6,7 @@ use App\Models\PdfDocument;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
+use Illuminate\Support\Facades\Log;
 use App\Services\AI\AIServiceInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -19,14 +20,13 @@ class QuizController extends Controller
      */
     public function index(): Response
     {
-        $quizzes = auth()->user()->pdfDocuments()
-            ->with(['quizzes' => function ($query) {
-                $query->latest();
-            }])
-            ->get()
-            ->flatMap(function ($document) {
-                return $document->quizzes;
-            });
+        // Get all quizzes for the user's documents with the pdf_document relationship eager loaded
+        $quizzes = Quiz::whereHas('pdfDocument', function ($query) {
+            $query->where('user_id', auth()->id());
+        })
+            ->with('pdfDocument') // Eager load the pdf_document relationship
+            ->latest()
+            ->get();
 
         return Inertia::render('Quizzes/Index', [
             'quizzes' => $quizzes,
@@ -97,6 +97,9 @@ class QuizController extends Controller
                 'status' => 'completed',
             ]);
         } catch (\Exception $e) {
+            // Log the error
+            Log::error('Error generating quiz: ' . $e->getMessage());
+
             // Update quiz status to failed
             $quiz->update([
                 'status' => 'failed',
