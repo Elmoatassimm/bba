@@ -101,9 +101,11 @@ class BasicAIService implements AIServiceInterface
      * In a real implementation, this would be replaced with an actual AI service integration
      *
      * @param string $filePath The path to the PDF file
+     * @param bool $includeDiagram Whether to include a diagram in the summary
+     * @param string $diagramType The type of diagram to generate (mindmap, flowchart, etc.)
      * @return string The summary of the PDF content
      */
-    public function summarizePdf(string $filePath): string
+    public function summarizePdf(string $filePath, bool $includeDiagram = true, string $diagramType = 'mindmap'): string
     {
         // Simulate processing time to make it feel more realistic
         sleep(2);
@@ -112,7 +114,15 @@ class BasicAIService implements AIServiceInterface
         $filename = basename($filePath);
 
         // Generate a simulated summary based on the filename
-        return $this->generateSimulatedSummary($filename);
+        $summary = $this->generateSimulatedSummary($filename);
+
+        // Add a diagram if requested
+        if ($includeDiagram) {
+            $diagram = $this->generateSimulatedDiagram($filename, $diagramType);
+            $summary .= "\n\n" . $diagram;
+        }
+
+        return $summary;
     }
 
     /**
@@ -189,6 +199,475 @@ class BasicAIService implements AIServiceInterface
         }
 
         return $template;
+    }
+
+    /**
+     * Generate a simulated diagram based on the filename and diagram type
+     *
+     * @param string $filename The name of the file
+     * @param string $diagramType The type of diagram to generate
+     * @return string The formatted diagram section
+     */
+    private function generateSimulatedDiagram(string $filename, string $diagramType): string
+    {
+        // Determine the document type based on the filename
+        $documentType = $this->determineDocumentType($filename);
+
+        // Generate diagram title
+        $diagramTitle = ucfirst($diagramType) . ' Diagram';
+
+        // Generate explanation
+        $explanation = "This diagram visualizes the key concepts from the document.";
+
+        // Generate diagram code based on diagram type and document type
+        $diagramCode = $this->generateDiagramCode($diagramType, $documentType);
+
+        // Format the diagram section
+        $formattedSection = "## Visual Representation: {$diagramTitle}\n\n";
+        $formattedSection .= "{$explanation}\n\n";
+        $formattedSection .= "```mermaid\n{$diagramCode}\n```\n\n";
+        $formattedSection .= "*How to interpret this diagram:* This visual representation shows the relationships between key concepts in the document.";
+
+        return $formattedSection;
+    }
+
+    /**
+     * Generate diagram code based on diagram type and document type
+     *
+     * @param string $diagramType The type of diagram to generate
+     * @param string $documentType The type of document
+     * @return string The diagram code
+     */
+    private function generateDiagramCode(string $diagramType, string $documentType): string
+    {
+        switch ($diagramType) {
+            case 'mindmap':
+                return $this->generateMindmapCode($documentType);
+            case 'flowchart':
+                return $this->generateFlowchartCode($documentType);
+            case 'sequenceDiagram':
+                return $this->generateSequenceDiagramCode($documentType);
+            case 'classDiagram':
+                return $this->generateClassDiagramCode($documentType);
+            case 'erDiagram':
+                return $this->generateERDiagramCode($documentType);
+            case 'gantt':
+                return $this->generateGanttCode($documentType);
+            case 'pie':
+                return $this->generatePieCode($documentType);
+            default:
+                return $this->generateMindmapCode($documentType); // Default to mindmap
+        }
+    }
+
+    /**
+     * Generate mindmap diagram code
+     *
+     * @param string $documentType The type of document
+     * @return string The mindmap code
+     */
+    private function generateMindmapCode(string $documentType): string
+    {
+        $topics = $this->getTopicsForDocumentType($documentType);
+        $mainTopic = array_shift($topics);
+
+        $code = "mindmap\n  root((" . $mainTopic . "))";
+
+        foreach ($topics as $index => $topic) {
+            $code .= "\n    " . $topic;
+
+            // Add some subtopics for the first few topics
+            if ($index < 3) {
+                $subtopics = $this->getSubtopicsForTopic($topic, $documentType);
+                foreach ($subtopics as $subtopic) {
+                    $code .= "\n      " . $subtopic;
+                }
+            }
+        }
+
+        return $code;
+    }
+
+    /**
+     * Generate flowchart diagram code
+     *
+     * @param string $documentType The type of document
+     * @return string The flowchart code
+     */
+    private function generateFlowchartCode(string $documentType): string
+    {
+        $steps = $this->getStepsForDocumentType($documentType);
+
+        $code = "flowchart TD\n  A[Start] --> B[" . $steps[0] . "]";
+        $code .= "\n  B --> C{" . $steps[1] . "?}";
+        $code .= "\n  C -->|Yes| D[" . $steps[2] . "]";
+        $code .= "\n  C -->|No| E[" . $steps[3] . "]";
+        $code .= "\n  D --> F[" . $steps[4] . "]";
+        $code .= "\n  E --> F";
+        $code .= "\n  F --> G[End]";
+
+        return $code;
+    }
+
+    /**
+     * Generate sequence diagram code
+     *
+     * @param string $documentType The type of document
+     * @return string The sequence diagram code
+     */
+    private function generateSequenceDiagramCode(string $documentType): string
+    {
+        $actors = $this->getActorsForDocumentType($documentType);
+
+        $code = "sequenceDiagram";
+        foreach ($actors as $index => $actor) {
+            $code .= "\n  participant " . chr(65 + $index) . " as " . $actor;
+        }
+
+        // Add some interactions
+        $code .= "\n  A->>B: Request information";
+        $code .= "\n  B->>C: Process request";
+        $code .= "\n  C->>D: Validate data";
+        $code .= "\n  D-->>C: Validation result";
+        $code .= "\n  C-->>B: Processing complete";
+        $code .= "\n  B-->>A: Response with data";
+
+        return $code;
+    }
+
+    /**
+     * Generate class diagram code
+     *
+     * @param string $documentType The type of document
+     * @return string The class diagram code
+     */
+    private function generateClassDiagramCode(string $documentType): string
+    {
+        $classes = $this->getClassesForDocumentType($documentType);
+
+        $code = "classDiagram";
+        foreach ($classes as $class => $details) {
+            $code .= "\n  class " . $class . " {";
+            foreach ($details['attributes'] as $attribute) {
+                $code .= "\n    +" . $attribute;
+            }
+            foreach ($details['methods'] as $method) {
+                $code .= "\n    +" . $method . "()";
+            }
+            $code .= "\n  }";
+        }
+
+        // Add relationships
+        $code .= "\n  " . array_keys($classes)[0] . " <|-- " . array_keys($classes)[1];
+        $code .= "\n  " . array_keys($classes)[0] . " <|-- " . array_keys($classes)[2];
+        $code .= "\n  " . array_keys($classes)[1] . " --> " . array_keys($classes)[3] . ": uses";
+
+        return $code;
+    }
+
+    /**
+     * Generate ER diagram code
+     *
+     * @param string $documentType The type of document
+     * @return string The ER diagram code
+     */
+    private function generateERDiagramCode(string $documentType): string
+    {
+        $entities = $this->getEntitiesForDocumentType($documentType);
+
+        $code = "erDiagram";
+
+        // Add relationships
+        $code .= "\n  " . array_keys($entities)[0] . " ||--o{ " . array_keys($entities)[1] . " : contains";
+        $code .= "\n  " . array_keys($entities)[1] . " ||--|{ " . array_keys($entities)[2] . " : includes";
+        $code .= "\n  " . array_keys($entities)[2] . " }|--|| " . array_keys($entities)[3] . " : references";
+
+        // Add attributes for some entities
+        foreach (array_slice($entities, 0, 2) as $entity => $attributes) {
+            $code .= "\n  " . $entity . " {";
+            foreach ($attributes as $type => $name) {
+                $code .= "\n    " . $type . " " . $name;
+            }
+            $code .= "\n  }";
+        }
+
+        return $code;
+    }
+
+    /**
+     * Generate Gantt chart code
+     *
+     * @param string $documentType The type of document
+     * @return string The Gantt chart code
+     */
+    private function generateGanttCode(string $documentType): string
+    {
+        $tasks = $this->getTasksForDocumentType($documentType);
+
+        $code = "gantt";
+        $code .= "\n  title Project Schedule";
+        $code .= "\n  dateFormat YYYY-MM-DD";
+
+        // Add sections and tasks
+        $code .= "\n  section Phase 1";
+        $code .= "\n  " . $tasks[0] . ": a1, 2023-01-01, 7d";
+        $code .= "\n  " . $tasks[1] . ": a2, after a1, 5d";
+
+        $code .= "\n  section Phase 2";
+        $code .= "\n  " . $tasks[2] . ": a3, after a2, 10d";
+        $code .= "\n  " . $tasks[3] . ": a4, after a3, 6d";
+
+        $code .= "\n  section Phase 3";
+        $code .= "\n  " . $tasks[4] . ": a5, after a4, 8d";
+
+        return $code;
+    }
+
+    /**
+     * Generate pie chart code
+     *
+     * @param string $documentType The type of document
+     * @return string The pie chart code
+     */
+    private function generatePieCode(string $documentType): string
+    {
+        $categories = $this->getCategoriesForDocumentType($documentType);
+
+        $code = "pie title Distribution";
+        foreach ($categories as $category => $value) {
+            $code .= "\n  \"" . $category . "\" : " . $value;
+        }
+
+        return $code;
+    }
+
+    /**
+     * Get topics for a document type (for mindmaps)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of topics
+     */
+    private function getTopicsForDocumentType(string $documentType): array
+    {
+        $topicsByType = [
+            'report' => ['Market Analysis', 'Key Findings', 'Methodology', 'Recommendations', 'Challenges', 'Future Outlook'],
+            'financial' => ['Financial Performance', 'Revenue Streams', 'Expense Categories', 'Growth Areas', 'Profit Margins', 'Projections'],
+            'technical' => ['System Architecture', 'Components', 'Requirements', 'Implementation', 'Performance', 'Security'],
+            'legal' => ['Agreement Terms', 'Obligations', 'Compliance', 'Liability', 'Dispute Resolution', 'Termination'],
+            'academic' => ['Research Methodology', 'Literature Review', 'Findings', 'Analysis', 'Limitations', 'Conclusions'],
+            'general' => ['Main Concepts', 'Key Points', 'Applications', 'Benefits', 'Challenges', 'Recommendations']
+        ];
+
+        return $topicsByType[$documentType] ?? $topicsByType['general'];
+    }
+
+    /**
+     * Get subtopics for a topic (for mindmaps)
+     *
+     * @param string $topic The main topic
+     * @param string $documentType The type of document
+     * @return array Array of subtopics
+     */
+    private function getSubtopicsForTopic(string $topic, string $documentType): array
+    {
+        // Simplified mapping of topics to subtopics
+        $subtopics = [
+            'Key Findings' => ['Finding 1', 'Finding 2', 'Finding 3'],
+            'Methodology' => ['Data Collection', 'Analysis Methods', 'Validation'],
+            'Recommendations' => ['Short-term', 'Medium-term', 'Long-term'],
+            'Revenue Streams' => ['Product Sales', 'Services', 'Subscriptions'],
+            'Expense Categories' => ['Operations', 'Marketing', 'R&D'],
+            'System Architecture' => ['Frontend', 'Backend', 'Database'],
+            'Components' => ['User Interface', 'API Layer', 'Data Storage'],
+            'Agreement Terms' => ['Duration', 'Renewal', 'Modification'],
+            'Obligations' => ['Provider', 'Client', 'Third Parties'],
+            'Research Methodology' => ['Quantitative', 'Qualitative', 'Mixed Methods'],
+            'Findings' => ['Primary Results', 'Secondary Outcomes', 'Correlations'],
+            'Main Concepts' => ['Concept 1', 'Concept 2', 'Concept 3'],
+            'Key Points' => ['Point 1', 'Point 2', 'Point 3']
+        ];
+
+        return $subtopics[$topic] ?? ['Subtopic 1', 'Subtopic 2', 'Subtopic 3'];
+    }
+
+    /**
+     * Get steps for a document type (for flowcharts)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of steps
+     */
+    private function getStepsForDocumentType(string $documentType): array
+    {
+        $stepsByType = [
+            'report' => ['Collect Data', 'Analyze Results', 'Prepare Report', 'Review Findings', 'Present Conclusions'],
+            'financial' => ['Record Transactions', 'Reconcile Accounts', 'Prepare Statements', 'Analyze Performance', 'Make Projections'],
+            'technical' => ['Define Requirements', 'Design Solution', 'Implement System', 'Test Functionality', 'Deploy Solution'],
+            'legal' => ['Draft Agreement', 'Review Terms', 'Negotiate Changes', 'Finalize Document', 'Execute Contract'],
+            'academic' => ['Define Research Question', 'Review Literature', 'Collect Data', 'Analyze Results', 'Draw Conclusions'],
+            'general' => ['Identify Need', 'Evaluate Options', 'Develop Plan', 'Implement Solution', 'Review Outcomes']
+        ];
+
+        return $stepsByType[$documentType] ?? $stepsByType['general'];
+    }
+
+    /**
+     * Get actors for a document type (for sequence diagrams)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of actors
+     */
+    private function getActorsForDocumentType(string $documentType): array
+    {
+        $actorsByType = [
+            'report' => ['Analyst', 'Researcher', 'Reviewer', 'Stakeholder'],
+            'financial' => ['Accountant', 'Financial Analyst', 'Manager', 'Auditor'],
+            'technical' => ['User', 'System', 'Database', 'External Service'],
+            'legal' => ['Client', 'Legal Counsel', 'Counterparty', 'Regulator'],
+            'academic' => ['Researcher', 'Participant', 'Peer Reviewer', 'Journal'],
+            'general' => ['Initiator', 'Processor', 'Validator', 'Recipient']
+        ];
+
+        return $actorsByType[$documentType] ?? $actorsByType['general'];
+    }
+
+    /**
+     * Get classes for a document type (for class diagrams)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of classes with attributes and methods
+     */
+    private function getClassesForDocumentType(string $documentType): array
+    {
+        $classesByType = [
+            'report' => [
+                'Report' => [
+                    'attributes' => ['String title', 'Date created', 'String author'],
+                    'methods' => ['generate', 'export', 'share']
+                ],
+                'AnalysisReport' => [
+                    'attributes' => ['Array findings', 'String methodology'],
+                    'methods' => ['analyzeTrends', 'compareResults']
+                ],
+                'SummaryReport' => [
+                    'attributes' => ['String summary', 'Array highlights'],
+                    'methods' => ['summarize', 'highlight']
+                ],
+                'ReportFormatter' => [
+                    'attributes' => ['String format', 'Boolean includeGraphics'],
+                    'methods' => ['formatText', 'addCharts', 'generatePDF']
+                ]
+            ],
+            'technical' => [
+                'System' => [
+                    'attributes' => ['String name', 'String version', 'Date lastUpdated'],
+                    'methods' => ['initialize', 'process', 'shutdown']
+                ],
+                'UserInterface' => [
+                    'attributes' => ['String theme', 'Boolean responsive'],
+                    'methods' => ['render', 'handleInput', 'update']
+                ],
+                'DataProcessor' => [
+                    'attributes' => ['Array data', 'String format'],
+                    'methods' => ['process', 'validate', 'transform']
+                ],
+                'Logger' => [
+                    'attributes' => ['String logLevel', 'String destination'],
+                    'methods' => ['log', 'rotate', 'archive']
+                ]
+            ],
+            'general' => [
+                'Document' => [
+                    'attributes' => ['String title', 'Date created', 'String author'],
+                    'methods' => ['create', 'read', 'update', 'delete']
+                ],
+                'TextDocument' => [
+                    'attributes' => ['String content', 'int wordCount'],
+                    'methods' => ['formatText', 'spellCheck']
+                ],
+                'SpreadsheetDocument' => [
+                    'attributes' => ['Array cells', 'int sheets'],
+                    'methods' => ['calculate', 'sort']
+                ],
+                'DocumentProcessor' => [
+                    'attributes' => ['String format', 'Boolean readOnly'],
+                    'methods' => ['process', 'convert', 'export']
+                ]
+            ]
+        ];
+
+        return $classesByType[$documentType] ?? $classesByType['general'];
+    }
+
+    /**
+     * Get entities for a document type (for ER diagrams)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of entities with attributes
+     */
+    private function getEntitiesForDocumentType(string $documentType): array
+    {
+        $entitiesByType = [
+            'report' => [
+                'REPORT' => ['string' => 'title', 'date' => 'created_at', 'string' => 'author'],
+                'SECTION' => ['string' => 'heading', 'text' => 'content', 'int' => 'order'],
+                'FINDING' => ['string' => 'description', 'float' => 'value', 'string' => 'category'],
+                'REFERENCE' => ['string' => 'source', 'date' => 'publication_date']
+            ],
+            'financial' => [
+                'TRANSACTION' => ['int' => 'transaction_id', 'date' => 'date', 'float' => 'amount'],
+                'ACCOUNT' => ['string' => 'account_number', 'string' => 'name', 'float' => 'balance'],
+                'CATEGORY' => ['string' => 'name', 'string' => 'type', 'string' => 'description'],
+                'REPORT' => ['string' => 'title', 'date' => 'period_end', 'string' => 'status']
+            ],
+            'general' => [
+                'USER' => ['string' => 'username', 'string' => 'email', 'date' => 'created_at'],
+                'DOCUMENT' => ['string' => 'title', 'text' => 'content', 'date' => 'last_modified'],
+                'CATEGORY' => ['string' => 'name', 'string' => 'description', 'int' => 'priority'],
+                'TAG' => ['string' => 'name', 'string' => 'color', 'int' => 'usage_count']
+            ]
+        ];
+
+        return $entitiesByType[$documentType] ?? $entitiesByType['general'];
+    }
+
+    /**
+     * Get tasks for a document type (for Gantt charts)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of tasks
+     */
+    private function getTasksForDocumentType(string $documentType): array
+    {
+        $tasksByType = [
+            'report' => ['Data Collection', 'Data Analysis', 'Draft Report', 'Review', 'Finalize Report'],
+            'financial' => ['Record Transactions', 'Reconcile Accounts', 'Prepare Statements', 'Review', 'File Reports'],
+            'technical' => ['Requirements Gathering', 'Design', 'Development', 'Testing', 'Deployment'],
+            'legal' => ['Initial Draft', 'Internal Review', 'Client Review', 'Revisions', 'Execution'],
+            'academic' => ['Literature Review', 'Methodology Development', 'Data Collection', 'Analysis', 'Paper Writing'],
+            'general' => ['Planning', 'Research', 'Development', 'Testing', 'Implementation']
+        ];
+
+        return $tasksByType[$documentType] ?? $tasksByType['general'];
+    }
+
+    /**
+     * Get categories for a document type (for pie charts)
+     *
+     * @param string $documentType The type of document
+     * @return array Array of categories with values
+     */
+    private function getCategoriesForDocumentType(string $documentType): array
+    {
+        $categoriesByType = [
+            'report' => ['Finding 1' => 35, 'Finding 2' => 25, 'Finding 3' => 20, 'Finding 4' => 15, 'Other' => 5],
+            'financial' => ['Revenue' => 45, 'Expenses' => 30, 'Profit' => 15, 'Investment' => 10],
+            'technical' => ['Frontend' => 30, 'Backend' => 35, 'Database' => 20, 'Infrastructure' => 15],
+            'legal' => ['Compliance' => 40, 'Risk' => 25, 'Obligations' => 20, 'Rights' => 15],
+            'academic' => ['Primary Results' => 35, 'Secondary Results' => 25, 'Methodology' => 20, 'Literature' => 20],
+            'general' => ['Category A' => 40, 'Category B' => 30, 'Category C' => 20, 'Category D' => 10]
+        ];
+
+        return $categoriesByType[$documentType] ?? $categoriesByType['general'];
     }
 
     /**
@@ -625,6 +1104,41 @@ class BasicAIService implements AIServiceInterface
             'summary' => $summary,
             'key_points' => $keyPoints,
             'actionable_takeaways' => $takeaways
+        ];
+    }
+
+    /**
+     * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file
+     *
+     * This is a simulation that generates realistic-looking diagrams based on the filename
+     * In a real implementation, this would be replaced with an actual AI service integration
+     *
+     * @param string $filePath The path to the PDF file
+     * @param string $diagramType The type of diagram to generate (mindmap, flowchart, etc.)
+     * @return array An array containing the diagram code and any additional information
+     */
+    public function generateDiagrams(string $filePath, string $diagramType = 'mindmap'): array
+    {
+        // Simulate processing time to make it feel more realistic
+        sleep(2);
+
+        // Extract the filename from the path
+        $filename = basename($filePath);
+
+        // Determine the document type based on the filename
+        $documentType = $this->determineDocumentType($filename);
+
+        // Generate diagram code based on diagram type and document type
+        $diagramCode = $this->generateDiagramCode($diagramType, $documentType);
+
+        // Generate explanation and interpretation
+        $explanation = "This diagram visualizes the key concepts and relationships found in the document.";
+        $interpretation = "The diagram shows how different elements relate to each other, helping to understand the document's structure and content.";
+
+        return [
+            'diagram_code' => $diagramCode,
+            'explanation' => $explanation,
+            'interpretation' => $interpretation
         ];
     }
 }

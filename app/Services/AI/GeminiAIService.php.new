@@ -10,18 +10,6 @@ use Smalot\PdfParser\Parser;
 class GeminiAIService implements AIServiceInterface
 {
     /**
-     * Valid diagram types that can be generated
-     */
-    protected const VALID_DIAGRAM_TYPES = [
-        'mindmap',
-        'flowchart',
-        'sequenceDiagram',
-        'classDiagram',
-        'erDiagram',
-        'gantt',
-        'pie'
-    ];
-    /**
      * The Gemini API endpoint for text generation
      * The {version} and {model} placeholders will be replaced with values from config
      */
@@ -46,14 +34,11 @@ class GeminiAIService implements AIServiceInterface
 
     /**
      * Summarize the content of a PDF file using Gemini LearnLM 2.0 Flash Model
-     * Optionally includes a Mermaid diagram in the summary
      *
      * @param string $filePath The path to the PDF file
-     * @param bool $includeDiagram Whether to include a diagram in the summary
-     * @param string $diagramType The type of diagram to generate (mindmap, flowchart, etc.)
-     * @return string The summary of the PDF content, optionally with a diagram
+     * @return string The summary of the PDF content
      */
-    public function summarizePdf(string $filePath, bool $includeDiagram = true, string $diagramType = 'mindmap'): string
+    public function summarizePdf(string $filePath): string
     {
         try {
             // Extract text from the PDF
@@ -76,68 +61,26 @@ class GeminiAIService implements AIServiceInterface
             $response = $this->callGeminiApi($prompt);
 
             // If the response is too generic or empty, try again with a different approach
-            if (strpos($response, 'generic') !== false ||
+            if (strpos($response, 'generic') !== false || 
                 strpos($response, 'lacks specific details') !== false ||
                 strlen($response) < 200) {
-
+                
                 Log::info('Received generic response, trying with a different prompt');
-
+                
                 // Try with a different prompt that focuses on specific content
                 $alternativePrompt = $this->createAlternativeSummarizationPrompt($text);
                 $response = $this->callGeminiApi($alternativePrompt);
             }
 
-            // If requested, generate a diagram and add it to the summary
-            if ($includeDiagram) {
-                try {
-                    // Generate the diagram
-                    $diagramResult = $this->generateDiagrams($filePath, $diagramType);
-
-                    if (!empty($diagramResult['diagram_code'])) {
-                        // Add the diagram to the summary
-                        $diagramSection = $this->formatDiagramForSummary($diagramResult, $diagramType);
-                        $response = $response . "\n\n" . $diagramSection;
-                    }
-                } catch (Exception $diagramException) {
-                    // Log the error but continue with the summary without the diagram
-                    Log::error('Error generating diagram: ' . $diagramException->getMessage());
-                    $response = $response . "\n\n*Note: A visual diagram was requested but could not be generated due to an error.*";
-                }
-            }
-
             return $response;
         } catch (Exception $e) {
             Log::error('Error summarizing PDF with Gemini: ' . $e->getMessage());
-
+            
             // Return a more user-friendly error message
             return "Sorry, there was an error summarizing the PDF: {$e->getMessage()}. Please try again later or with a different PDF file.";
         }
     }
-
-
-    /**
-     * Format a diagram result for inclusion in a summary
-     *
-     * @param array $diagramResult The diagram result from generateDiagrams
-     * @param string $diagramType The type of diagram
-     * @return string The formatted diagram section
-     */
-    protected function formatDiagramForSummary(array $diagramResult, string $diagramType): string
-    {
-        $diagramTitle = ucfirst($diagramType) . ' Diagram';
-        $explanation = !empty($diagramResult['explanation']) ? $diagramResult['explanation'] : "This diagram visualizes the key concepts from the document.";
-        $interpretation = !empty($diagramResult['interpretation']) ? $diagramResult['interpretation'] : "";
-
-        $formattedSection = "## Visual Representation: {$diagramTitle}\n\n";
-        $formattedSection .= "{$explanation}\n\n";
-        $formattedSection .= "```mermaid\n{$diagramResult['diagram_code']}\n```\n\n";
-
-        if (!empty($interpretation)) {
-            $formattedSection .= "*How to interpret this diagram:* {$interpretation}\n";
-        }
-
-        return $formattedSection;
-    }
+    
     /**
      * Create an alternative prompt for summarization when the first attempt yields generic results
      *
@@ -183,15 +126,15 @@ PROMPT;
             // Use the PDF Parser to extract text from the PDF file
             $parser = new Parser();
             $pdf = $parser->parseFile($filePath);
-
+            
             // Extract text from all pages
             $text = $pdf->getText();
-
+            
             // If text extraction failed or returned empty text, try page by page
             if (empty(trim($text))) {
                 $text = '';
                 $pages = $pdf->getPages();
-
+                
                 foreach ($pages as $page) {
                     $pageText = $page->getText();
                     if (!empty(trim($pageText))) {
@@ -199,35 +142,35 @@ PROMPT;
                     }
                 }
             }
-
+            
             // Clean up the text (remove excessive whitespace, etc.)
             $text = $this->cleanPdfText($text);
-
+            
             // If we still don't have any text, throw an exception
             if (empty(trim($text))) {
                 throw new Exception("Could not extract text from PDF file: {$filePath}");
             }
-
+            
             // Add some metadata to the text
             $filename = basename($filePath);
             $fileSize = filesize($filePath);
             $fileDate = date('Y-m-d', filemtime($filePath));
-
+            
             $metadata = "Document: {$filename}\n";
             $metadata .= "Date: {$fileDate}\n";
             $metadata .= "Size: {$fileSize} bytes\n\n";
-
+            
             return $metadata . $text;
         } catch (Exception $e) {
             Log::error('Error extracting text from PDF: ' . $e->getMessage());
-
+            
             // Fall back to simulated content if extraction fails
             $filename = basename($filePath);
-            return "Failed to extract text from {$filename}. Using simulated content instead.\n\n" .
+            return "Failed to extract text from {$filename}. Using simulated content instead.\n\n" . 
                    $this->generateGenericContent($filename);
         }
     }
-
+    
     /**
      * Clean up text extracted from PDF
      *
@@ -238,13 +181,13 @@ PROMPT;
     {
         // Replace multiple spaces with a single space
         $text = preg_replace('/\s+/', ' ', $text);
-
+        
         // Replace multiple newlines with a double newline
         $text = preg_replace('/\n\s*\n+/', "\n\n", $text);
-
+        
         // Remove any control characters
         $text = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-
+        
         return trim($text);
     }
 
@@ -441,11 +384,9 @@ PROMPT;
             ]
         ];
 
-        // For development purposes, we're disabling SSL verification
-        // In production, you should properly configure SSL certificates
         $response = Http::withHeaders([
             'Content-Type' => 'application/json'
-        ])->withoutVerifying()->post($url, $payload);
+        ])->post($url, $payload);
 
         if (!$response->successful()) {
             $errorBody = $response->body();
@@ -576,33 +517,33 @@ PROMPT;
             if (preg_match('/\[\s*\{.*\}\s*\]/s', $response, $matches)) {
                 $jsonStr = $matches[0];
                 $questions = json_decode($jsonStr, true);
-
+                
                 if (json_last_error() === JSON_ERROR_NONE && is_array($questions)) {
                     return $this->validateAndFormatQuestions($questions);
                 }
             }
-
+            
             // If direct JSON parsing fails, try to extract structured content
             // This is a fallback in case the model doesn't return proper JSON
             $questions = [];
             $questionBlocks = preg_split('/\d+\.\s*Question:|\d+\)\s*Question:|Question\s+\d+:|\n\n(?=\d+\.\s*)/i', $response, -1, PREG_SPLIT_NO_EMPTY);
-
+            
             foreach ($questionBlocks as $block) {
                 if (empty(trim($block))) continue;
-
+                
                 $question = $this->extractQuestionFromText($block);
                 if ($question) {
                     $questions[] = $question;
                 }
             }
-
+            
             return $questions;
         } catch (Exception $e) {
             Log::error('Error parsing quiz response: ' . $e->getMessage());
             return [];
         }
     }
-
+    
     /**
      * Extract a structured question from text block
      *
@@ -614,9 +555,9 @@ PROMPT;
         // Try to extract question and options
         $questionMatch = preg_match('/(.+?)(?:\n|\r\n|\r|Options:|Choices:|A\)|a\))/s', $text, $questionMatches);
         if (!$questionMatch) return null;
-
+        
         $question = trim($questionMatches[1]);
-
+        
         // Extract options
         $options = [];
         $optionPatterns = [
@@ -625,7 +566,7 @@ PROMPT;
             'c' => '/(?:C\)|c\)|Option C:|\(C\))\s*(.+?)(?=(?:D\)|d\)|Option D:|\(D\)|$))/s',
             'd' => '/(?:D\)|d\)|Option D:|\(D\))\s*(.+?)(?=(?:Correct Answer:|Answer:|$))/s',
         ];
-
+        
         foreach ($optionPatterns as $key => $pattern) {
             if (preg_match($pattern, $text, $matches)) {
                 $options[$key] = trim($matches[1]);
@@ -634,7 +575,7 @@ PROMPT;
                 return null;
             }
         }
-
+        
         // Extract correct answer
         $correctAnswer = null;
         if (preg_match('/(?:Correct Answer:|Answer:|The correct answer is)\s*([a-dA-D])/i', $text, $matches)) {
@@ -642,17 +583,17 @@ PROMPT;
         } else {
             // Try to find indicators of correct answers in the options
             foreach (['a', 'b', 'c', 'd'] as $option) {
-                if (strpos(strtolower($text), "correct answer: $option") !== false ||
+                if (strpos(strtolower($text), "correct answer: $option") !== false || 
                     strpos(strtolower($text), "correct: $option") !== false) {
                     $correctAnswer = $option;
                     break;
                 }
             }
         }
-
+        
         // If we couldn't determine the correct answer, return null
         if (!$correctAnswer) return null;
-
+        
         return [
             'question' => $question,
             'option_a' => $options['a'],
@@ -662,7 +603,7 @@ PROMPT;
             'correct_answer' => $correctAnswer
         ];
     }
-
+    
     /**
      * Validate and format quiz questions
      *
@@ -672,19 +613,19 @@ PROMPT;
     protected function validateAndFormatQuestions(array $questions): array
     {
         $validQuestions = [];
-
+        
         foreach ($questions as $q) {
             // Check if the question has all required fields
             if (!isset($q['question'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'])) {
                 continue;
             }
-
+            
             // Ensure correct_answer is a valid option (a, b, c, or d)
             $correctAnswer = strtolower($q['correct_answer']);
             if (!in_array($correctAnswer, ['a', 'b', 'c', 'd'])) {
                 continue;
             }
-
+            
             $validQuestions[] = [
                 'question' => $q['question'],
                 'option_a' => $q['option_a'],
@@ -694,448 +635,7 @@ PROMPT;
                 'correct_answer' => $correctAnswer
             ];
         }
-
+        
         return $validQuestions;
     }
-
-    /**
-<<<<<<< HEAD
-     * Summarize a YouTube video using Gemini LearnLM 2.0 Flash Model
-     *
-     * @param string $videoUrl The URL of the YouTube video
-     * @return array The summary, key points, and actionable takeaways of the video
-     */
-    public function summarizeYouTubeVideo(string $videoUrl): array
-    {
-        try {
-            // Extract the video ID from the URL
-            $videoId = $this->extractYouTubeVideoId($videoUrl);
-
-            if (empty($videoId)) {
-                throw new Exception("Could not extract video ID from the URL: {$videoUrl}");
-            }
-
-            // Create the prompt for video summarization
-            $prompt = $this->createVideoSummarizationPrompt($videoUrl, $videoId);
-=======
-     * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file
-     *
-     * @param string $filePath The path to the PDF file
-     * @param string $diagramType The type of diagram to generate (mindmap, flowchart, etc.)
-     * @return array An array containing the diagram code and any additional information
-     */
-    public function generateDiagrams(string $filePath, string $diagramType = 'mindmap'): array
-    {
-        try {
-            // Validate diagram type
-            if (!in_array($diagramType, self::VALID_DIAGRAM_TYPES)) {
-                throw new Exception("Invalid diagram type: {$diagramType}. Valid types are: " . implode(', ', self::VALID_DIAGRAM_TYPES));
-            }
-
-            // Extract text from the PDF
-            $text = $this->extractTextFromPdf($filePath);
-
-            if (empty($text)) {
-                throw new Exception("Could not extract text from the PDF file.");
-            }
-
-            // Truncate text if it's too long (Gemini has token limits)
-            $text = $this->truncateText($text, 30000); // Adjust this limit as needed
-
-            // Create the prompt for diagram generation
-            $prompt = $this->createDiagramGenerationPrompt($text, $diagramType);
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
-
-            // Call Gemini API
-            $response = $this->callGeminiApi($prompt);
-
-<<<<<<< HEAD
-            // Parse the response to extract summary, key points, and actionable takeaways
-            return $this->parseVideoSummaryResponse($response);
-        } catch (Exception $e) {
-            Log::error('Error summarizing YouTube video with Gemini: ' . $e->getMessage());
-
-            // Return a structured error response
-            return [
-                'summary' => "Sorry, there was an error summarizing the video: {$e->getMessage()}. Please try again later or with a different video URL.",
-                'key_points' => [],
-                'actionable_takeaways' => []
-            ];
-=======
-            // Parse the response to extract the Mermaid diagram code
-            $result = $this->parseDiagramResponse($response, $diagramType);
-
-            // If we couldn't extract a valid diagram, try with a more specific prompt
-            if (empty($result['diagram_code'])) {
-                Log::info('Failed to generate diagram with initial prompt, trying with a more specific prompt');
-
-                $alternativePrompt = $this->createAlternativeDiagramPrompt($text, $diagramType);
-                $response = $this->callGeminiApi($alternativePrompt);
-                $result = $this->parseDiagramResponse($response, $diagramType);
-            }
-
-            if (empty($result['diagram_code'])) {
-                throw new Exception("Failed to generate a valid {$diagramType} diagram from the PDF content.");
-            }
-
-            return $result;
-        } catch (Exception $e) {
-            Log::error('Error generating diagram with Gemini: ' . $e->getMessage());
-            throw $e;
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
-        }
-    }
-
-    /**
-<<<<<<< HEAD
-     * Extract the YouTube video ID from a URL
-     *
-     * @param string $url The YouTube video URL
-     * @return string|null The video ID or null if not found
-     */
-    protected function extractYouTubeVideoId(string $url): ?string
-    {
-        // Regular expression to match YouTube video IDs from various URL formats
-        $pattern = '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i';
-
-        if (preg_match($pattern, $url, $matches)) {
-            return $matches[1];
-        }
-
-        return null;
-    }
-
-    /**
-     * Create a prompt for YouTube video summarization
-     *
-     * @param string $videoUrl The YouTube video URL
-     * @param string $videoId The YouTube video ID
-     * @return string The prompt
-     */
-    protected function createVideoSummarizationPrompt(string $videoUrl, string $videoId): string
-    {
-        return <<<PROMPT
-You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a comprehensive, educational summary of a YouTube video that follows learning science principles. You will manage cognitive load by presenting relevant, well-structured information, and stimulate curiosity by making the content engaging.
-
-I need you to create a detailed, educational summary of the following YouTube video: {$videoUrl}
-
-Instructions:
-1. Analyze the video content based on the URL and video ID ({$videoId})
-2. Create a concise summary (3-5 sentences) that captures the main purpose and content of the video
-3. Extract 5-7 key points or concepts presented in the video
-4. Identify 3-5 actionable takeaways or practical applications from the video
-5. Focus on educational value, explaining core ideas or skills taught in the video
-6. Tailor the summary for students who want to learn efficiently from the video
-7. Organize the information in a clear, structured format
-8. Use bullet points for key points and actionable takeaways
-
-Format your response as a JSON object with the following structure:
-{
-  "summary": "A concise summary of the video's main content and purpose",
-  "key_points": [
-    "Key point 1",
-    "Key point 2",
-    "etc."
-  ],
-  "actionable_takeaways": [
-    "Actionable takeaway 1",
-    "Actionable takeaway 2",
-    "etc."
-  ]
-}
-
-Please provide a comprehensive, educational summary of this YouTube video in the specified JSON format.
-=======
-     * Create a prompt for diagram generation using LearnLM 2.0 Flash Model
-     *
-     * @param string $text The text to generate a diagram from
-     * @param string $diagramType The type of diagram to generate
-     * @return string The prompt
-     */
-    protected function createDiagramGenerationPrompt(string $text, string $diagramType): string
-    {
-        $diagramInstructions = $this->getDiagramTypeInstructions($diagramType);
-
-        return <<<PROMPT
-You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a visual representation of academic content that follows learning science principles. You will manage cognitive load by presenting information in a structured, visual format using Mermaid diagrams.
-
-I need you to create a {$diagramType} diagram based on the document provided below. This diagram will be used to help students understand and visualize the content.
-
-Instructions:
-1. Analyze the document to identify key concepts, relationships, and structures
-2. Create a {$diagramType} diagram using Mermaid syntax that represents the main ideas and their relationships
-3. Focus on clarity and educational value - the diagram should help students understand the content
-4. Include only the most important information to avoid overwhelming the viewer
-5. Use proper Mermaid syntax for {$diagramType} diagrams
-{$diagramInstructions}
-
-Document content:
-
-{$text}
-
-Provide your response in the following format:
-1. A brief explanation of what the diagram represents (2-3 sentences)
-2. The complete Mermaid diagram code enclosed in triple backticks with the mermaid tag
-3. A brief explanation of how to interpret the diagram (2-3 sentences)
-
-Make sure the Mermaid code is syntactically correct and properly formatted.
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
-PROMPT;
-    }
-
-    /**
-<<<<<<< HEAD
-     * Parse the response from Gemini API to extract video summary components
-     *
-     * @param string $response The response from Gemini API
-     * @return array The parsed summary, key points, and actionable takeaways
-     */
-    protected function parseVideoSummaryResponse(string $response): array
-    {
-        try {
-            // Try to extract JSON from the response
-            if (preg_match('/\{\s*"summary".*\}\s*/s', $response, $matches)) {
-                $jsonStr = $matches[0];
-                $data = json_decode($jsonStr, true);
-
-                if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
-                    // Ensure all required fields are present
-                    if (isset($data['summary']) && isset($data['key_points']) && isset($data['actionable_takeaways'])) {
-                        return [
-                            'summary' => $data['summary'],
-                            'key_points' => $data['key_points'],
-                            'actionable_takeaways' => $data['actionable_takeaways']
-                        ];
-                    }
-                }
-            }
-
-            // If JSON parsing fails, try to extract structured content
-            $summary = '';
-            $keyPoints = [];
-            $actionableTakeaways = [];
-
-            // Extract summary (usually the first paragraph)
-            if (preg_match('/(?:Summary|Video Summary):\s*(.+?)(?=\n\n|\r\n\r\n|Key Points|Main Points|$)/s', $response, $matches)) {
-                $summary = trim($matches[1]);
-            }
-
-            // Extract key points
-            if (preg_match('/(?:Key Points|Main Points):\s*(.+?)(?=\n\n|\r\n\r\n|Actionable Takeaways|Practical Applications|$)/s', $response, $matches)) {
-                $pointsText = $matches[1];
-                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $pointsText, $pointMatches);
-                if (!empty($pointMatches[1])) {
-                    $keyPoints = array_map('trim', $pointMatches[1]);
-                }
-            }
-
-            // Extract actionable takeaways
-            if (preg_match('/(?:Actionable Takeaways|Practical Applications):\s*(.+?)(?=\n\n|\r\n\r\n|$)/s', $response, $matches)) {
-                $takeawaysText = $matches[1];
-                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $takeawaysText, $takeawayMatches);
-                if (!empty($takeawayMatches[1])) {
-                    $actionableTakeaways = array_map('trim', $takeawayMatches[1]);
-                }
-            }
-
-            // If we couldn't extract structured content, use the whole response as the summary
-            if (empty($summary) && empty($keyPoints) && empty($actionableTakeaways)) {
-                return [
-                    'summary' => trim($response),
-                    'key_points' => [],
-                    'actionable_takeaways' => []
-                ];
-            }
-
-            return [
-                'summary' => $summary,
-                'key_points' => $keyPoints,
-                'actionable_takeaways' => $actionableTakeaways
-            ];
-        } catch (Exception $e) {
-            Log::error('Error parsing video summary response: ' . $e->getMessage());
-            return [
-                'summary' => 'Error parsing the AI response. Please try again.',
-                'key_points' => [],
-                'actionable_takeaways' => []
-            ];
-        }
-    }
-=======
-     * Create an alternative prompt for diagram generation when the first attempt fails
-     *
-     * @param string $text The text to generate a diagram from
-     * @param string $diagramType The type of diagram to generate
-     * @return string The prompt
-     */
-    protected function createAlternativeDiagramPrompt(string $text, string $diagramType): string
-    {
-        $diagramInstructions = $this->getDiagramTypeInstructions($diagramType);
-        $exampleCode = $this->getExampleDiagramCode($diagramType);
-
-        return <<<PROMPT
-You are an expert in creating Mermaid diagrams for educational purposes. Your task is to create a clear, well-structured {$diagramType} diagram based on the document content.
-
-I need you to focus ONLY on creating a valid, syntactically correct Mermaid diagram that represents the key concepts in the document.
-
-Instructions:
-1. Focus on the main topics and their relationships in the document
-2. Create a simple but effective {$diagramType} diagram using proper Mermaid syntax
-3. Ensure the diagram is not too complex - include only 5-10 main elements
-4. Follow the exact syntax requirements for Mermaid {$diagramType} diagrams
-5. Make sure all nodes and connections are properly defined
-{$diagramInstructions}
-
-Here is an example of a valid Mermaid {$diagramType} diagram structure:
-
-```mermaid
-{$exampleCode}
-```
-
-Document content:
-
-{$text}
-
-Provide ONLY the Mermaid diagram code enclosed in triple backticks with the mermaid tag. Ensure it is syntactically correct and properly formatted.
-PROMPT;
-    }
-
-    /**
-     * Get specific instructions for different diagram types
-     *
-     * @param string $diagramType The type of diagram
-     * @return string Instructions specific to the diagram type
-     */
-    protected function getDiagramTypeInstructions(string $diagramType): string
-    {
-        switch ($diagramType) {
-            case 'mindmap':
-                return "6. For mindmaps, use a hierarchical structure with a central concept and related subtopics\n7. Use proper indentation to show relationships between concepts\n8. Keep the mindmap balanced with 3-7 main branches";
-
-            case 'flowchart':
-                return "6. For flowcharts, use clear directional flow with proper start and end points\n7. Use appropriate shapes for different types of steps (process, decision, etc.)\n8. Include decision points with yes/no or true/false paths where appropriate";
-
-            case 'sequenceDiagram':
-                return "6. For sequence diagrams, identify the key actors/participants\n7. Show the sequence of interactions between participants in chronological order\n8. Include important messages and responses between participants";
-
-            case 'classDiagram':
-                return "6. For class diagrams, identify the main classes/entities in the document\n7. Include important attributes and methods for each class\n8. Show relationships between classes (inheritance, association, etc.)";
-
-            case 'erDiagram':
-                return "6. For ER diagrams, identify the main entities in the document\n7. Define relationships between entities with proper cardinality\n8. Include key attributes for each entity";
-
-            case 'gantt':
-                return "6. For Gantt charts, identify the main tasks or phases from the document\n7. Estimate reasonable durations for each task\n8. Show dependencies between tasks where appropriate";
-
-            case 'pie':
-                return "6. For pie charts, identify data that represents parts of a whole\n7. Use 3-7 segments for clarity\n8. Make sure the segments add up to 100% of the whole";
-
-            default:
-                return "6. Focus on creating a clear, well-structured diagram\n7. Use appropriate Mermaid syntax for your diagram type\n8. Keep the diagram simple enough to be understood at a glance";
-        }
-    }
-
-    /**
-     * Get example diagram code for different diagram types
-     *
-     * @param string $diagramType The type of diagram
-     * @return string Example code for the diagram type
-     */
-    protected function getExampleDiagramCode(string $diagramType): string
-    {
-        switch ($diagramType) {
-            case 'mindmap':
-                return "mindmap\n  root((Main Topic))\n    Topic 1\n      Subtopic 1.1\n      Subtopic 1.2\n    Topic 2\n      Subtopic 2.1\n      Subtopic 2.2\n    Topic 3\n      Subtopic 3.1";
-
-            case 'flowchart':
-                return "flowchart TD\n  A[Start] --> B{Decision?}\n  B -->|Yes| C[Process 1]\n  B -->|No| D[Process 2]\n  C --> E[End]\n  D --> E";
-
-            case 'sequenceDiagram':
-                return "sequenceDiagram\n  participant A as Actor A\n  participant B as Actor B\n  A->>B: Request\n  B->>A: Response\n  A->>B: Another request\n  B->>A: Another response";
-
-            case 'classDiagram':
-                return "classDiagram\n  class Animal {\n    +String name\n    +makeSound()\n  }\n  class Dog {\n    +fetch()\n  }\n  class Cat {\n    +climb()\n  }\n  Animal <|-- Dog\n  Animal <|-- Cat";
-
-            case 'erDiagram':
-                return "erDiagram\n  CUSTOMER ||--o{ ORDER : places\n  ORDER ||--|{ LINE-ITEM : contains\n  CUSTOMER {\n    string name\n    string email\n  }\n  ORDER {\n    int orderNumber\n    date orderDate\n  }";
-
-            case 'gantt':
-                return "gantt\n  title Project Schedule\n  dateFormat  YYYY-MM-DD\n  section Phase 1\n  Task 1: a1, 2023-01-01, 7d\n  Task 2: after a1, 5d\n  section Phase 2\n  Task 3: 2023-01-15, 10d";
-
-            case 'pie':
-                return "pie title Distribution\n  \"Category A\" : 40\n  \"Category B\" : 30\n  \"Category C\" : 20\n  \"Category D\" : 10";
-
-            default:
-                return "graph TD\n  A[Example] --> B[Diagram]\n  B --> C[With]\n  B --> D[Simple]\n  D --> E[Structure]";
-        }
-    }
-
-    /**
-     * Parse the response from Gemini API to extract the Mermaid diagram code
-     *
-     * @param string $response The response from Gemini API
-     * @param string $diagramType The type of diagram that was requested
-     * @return array The parsed diagram information
-     */
-    protected function parseDiagramResponse(string $response, string $diagramType): array
-    {
-        $result = [
-            'diagram_code' => '',
-            'explanation' => '',
-            'interpretation' => ''
-        ];
-
-        // Extract the Mermaid code block
-        if (preg_match('/```mermaid\s*\n([\s\S]*?)\n```/', $response, $matches)) {
-            $diagramCode = trim($matches[1]);
-
-            // Validate that the diagram code contains the expected diagram type declaration
-            $validDiagramStart = false;
-
-            switch ($diagramType) {
-                case 'mindmap':
-                    $validDiagramStart = strpos($diagramCode, 'mindmap') === 0;
-                    break;
-                case 'flowchart':
-                    $validDiagramStart = strpos($diagramCode, 'flowchart') === 0 || strpos($diagramCode, 'graph') === 0;
-                    break;
-                case 'sequenceDiagram':
-                    $validDiagramStart = strpos($diagramCode, 'sequenceDiagram') === 0;
-                    break;
-                case 'classDiagram':
-                    $validDiagramStart = strpos($diagramCode, 'classDiagram') === 0;
-                    break;
-                case 'erDiagram':
-                    $validDiagramStart = strpos($diagramCode, 'erDiagram') === 0;
-                    break;
-                case 'gantt':
-                    $validDiagramStart = strpos($diagramCode, 'gantt') === 0;
-                    break;
-                case 'pie':
-                    $validDiagramStart = strpos($diagramCode, 'pie') === 0;
-                    break;
-                default:
-                    $validDiagramStart = true; // For unknown types, accept any diagram
-            }
-
-            if ($validDiagramStart) {
-                $result['diagram_code'] = $diagramCode;
-            }
-        }
-
-        // Extract explanation (before the diagram)
-        $explanationPattern = '/^([\s\S]*?)```mermaid/m';
-        if (preg_match($explanationPattern, $response, $matches)) {
-            $result['explanation'] = trim($matches[1]);
-        }
-
-        // Extract interpretation (after the diagram)
-        $interpretationPattern = '/```\s*([\s\S]*?)$/m';
-        if (preg_match($interpretationPattern, $response, $matches)) {
-            $result['interpretation'] = trim($matches[1]);
-        }
-
-        return $result;
-    }
->>>>>>> 70aa7d1d0adc1859b9862d36a46e00bc2248a682
 }

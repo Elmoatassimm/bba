@@ -10,7 +10,7 @@ interface TypewriterEffectProps {
 
 export default function TypewriterEffect({
     text,
-    typingSpeed = 30, // milliseconds per character
+    typingSpeed = 10, // milliseconds per character
     startDelay = 500, // milliseconds before starting
     onComplete,
     className = '',

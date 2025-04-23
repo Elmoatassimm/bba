@@ -1,9 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import MermaidDiagram from '@/components/MermaidDiagram.jsx';
+import MarkdownRenderer from '@/components/MarkdownRenderer.jsx';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeft, Download, FileText, GraduationCap, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, GraduationCap, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface PdfDocument {
     id: number;
@@ -20,6 +24,11 @@ interface Props {
 }
 
 export default function Show({ document, pdfUrl }: Props) {
+    const [diagramType, setDiagramType] = useState<string>('mindmap');
+    const [isGeneratingDiagram, setIsGeneratingDiagram] = useState<boolean>(false);
+    const [diagramData, setDiagramData] = useState<any>(null);
+    const [diagramError, setDiagramError] = useState<string | null>(null);
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Dashboard',
@@ -34,6 +43,78 @@ export default function Show({ document, pdfUrl }: Props) {
             href: `/pdf-documents/${document.id}`,
         },
     ];
+
+    // Extract Mermaid diagram code from summary if it exists
+    useEffect(() => {
+        if (document.summary) {
+            // Look for Mermaid code blocks in the summary
+            const mermaidMatch = document.summary.match(/```mermaid\n([\s\S]*?)\n```/);
+            if (mermaidMatch && mermaidMatch[1]) {
+                const diagramCode = mermaidMatch[1].trim();
+                console.log('Found diagram in summary:', diagramCode);
+
+                // Determine diagram type from the code
+                let detectedType = 'mindmap';
+                if (diagramCode.startsWith('flowchart')) detectedType = 'flowchart';
+                else if (diagramCode.startsWith('sequenceDiagram')) detectedType = 'sequenceDiagram';
+                else if (diagramCode.startsWith('classDiagram')) detectedType = 'classDiagram';
+                else if (diagramCode.startsWith('erDiagram')) detectedType = 'erDiagram';
+                else if (diagramCode.startsWith('gantt')) detectedType = 'gantt';
+                else if (diagramCode.startsWith('pie')) detectedType = 'pie';
+
+                // Update the diagram type in the UI
+                setDiagramType(detectedType);
+
+                setDiagramData({
+                    diagram_code: diagramCode,
+                    explanation: 'Diagram extracted from summary',
+                    interpretation: 'This diagram was automatically generated during document processing.'
+                });
+            } else {
+                console.log('No diagram found in summary');
+            }
+        }
+    }, [document.summary]);
+
+    // Function to generate a new diagram
+    const generateDiagram = async () => {
+        setIsGeneratingDiagram(true);
+        setDiagramError(null);
+
+        try {
+            // Get CSRF token
+            const csrfToken = window.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+            console.log('Generating diagram of type:', diagramType);
+
+            const response = await fetch(route('pdf-documents.diagrams', document.id), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ diagram_type: diagramType }),
+            });
+
+            const data = await response.json();
+            console.log('Diagram generation response:', data);
+
+            if (response.ok && data.success) {
+                // Log the diagram code for debugging
+                console.log('Received diagram code:', data.diagram.diagram_code);
+
+                setDiagramData(data.diagram);
+            } else {
+                setDiagramError(data.error || 'Failed to generate diagram');
+            }
+        } catch (error) {
+            console.error('Error generating diagram:', error);
+            setDiagramError('An error occurred while generating the diagram');
+        } finally {
+            setIsGeneratingDiagram(false);
+        }
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -108,7 +189,7 @@ export default function Show({ document, pdfUrl }: Props) {
                             <div className="p-4">
                                 {document.status === 'completed' ? (
                                     <div className="prose max-w-none dark:prose-invert">
-                                        <p className="whitespace-pre-line">{document.summary}</p>
+                                        <MarkdownRenderer content={document.summary} />
                                     </div>
                                 ) : document.status === 'processing' ? (
                                     <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -126,6 +207,86 @@ export default function Show({ document, pdfUrl }: Props) {
                                     <div className="rounded-lg bg-gray-50 p-4 text-gray-800 dark:bg-gray-900 dark:text-gray-300">
                                         <p>Waiting to process this document.</p>
                                         <p className="mt-2 text-sm">The document is in the queue and will be processed shortly.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="rounded-lg border">
+                            <div className="border-b bg-gray-50 p-4 dark:bg-gray-900">
+                                <h2 className="text-lg font-medium">Visual Representation</h2>
+                            </div>
+                            <div className="p-4">
+                                {document.status === 'completed' ? (
+                                    <div>
+                                        <div className="mb-4 flex items-center gap-4">
+                                            <div className="flex-1">
+                                                <Select
+                                                    value={diagramType}
+                                                    onValueChange={(value) => {
+                                                        setDiagramType(value);
+                                                        // Clear previous diagram data when changing type
+                                                        setDiagramData(null);
+                                                    }}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select diagram type" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="mindmap">Mind Map</SelectItem>
+                                                        <SelectItem value="flowchart">Flowchart</SelectItem>
+                                                        <SelectItem value="sequenceDiagram">Sequence Diagram</SelectItem>
+                                                        <SelectItem value="classDiagram">Class Diagram</SelectItem>
+                                                        <SelectItem value="erDiagram">ER Diagram</SelectItem>
+                                                        <SelectItem value="gantt">Gantt Chart</SelectItem>
+                                                        <SelectItem value="pie">Pie Chart</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <Button
+                                                onClick={generateDiagram}
+                                                disabled={isGeneratingDiagram}
+                                                size="sm"
+                                            >
+                                                {isGeneratingDiagram ? 'Generating...' : 'Generate Diagram'}
+                                            </Button>
+                                        </div>
+
+                                        {diagramError && (
+                                            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
+                                                <p>{diagramError}</p>
+                                            </div>
+                                        )}
+
+                                        {diagramData ? (
+                                            <div>
+                                                {diagramData.explanation && (
+                                                    <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{diagramData.explanation}</p>
+                                                )}
+
+                                                <MermaidDiagram
+                                                    chart={diagramData.diagram_code}
+                                                    config={{
+                                                        theme: window.document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                                                        fontFamily: 'Instrument Sans, sans-serif'
+                                                    }}
+                                                />
+
+                                                {diagramData.interpretation && (
+                                                    <p className="mt-4 text-sm italic text-gray-600 dark:text-gray-400">
+                                                        <strong>How to interpret:</strong> {diagramData.interpretation}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-600 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-400">
+                                                <p>Select a diagram type and click "Generate Diagram" to visualize the document content.</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+                                        <p>Diagrams will be available once the document processing is complete.</p>
                                     </div>
                                 )}
                             </div>
@@ -156,15 +317,47 @@ interface DocumentActionsProps {
 }
 
 function DocumentActions({ document }: DocumentActionsProps) {
+    const [showDiagramOptions, setShowDiagramOptions] = useState(false);
+    const [selectedDiagramType, setSelectedDiagramType] = useState('mindmap');
+    const [includeDiagram, setIncludeDiagram] = useState(true);
+
     const { processing: reprocessing, post: reprocessPost } = useForm();
-    const { processing: deleting, delete: deleteDoc } = useForm({ onBefore: () => confirm('Are you sure you want to delete this document?') });
+    const { processing: deleting, delete: deleteDoc } = useForm();
 
     const handleReprocess = () => {
-        reprocessPost(route('pdf-documents.reprocess', document.id));
+        if (showDiagramOptions) {
+            // Create a FormData object
+            const formData = new FormData();
+            formData.append('include_diagram', includeDiagram ? '1' : '0');
+            formData.append('diagram_type', selectedDiagramType);
+
+            // Use the form data directly
+            fetch(route('pdf-documents.reprocess', document.id), {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': window.document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                body: formData
+            }).then(() => {
+                // Reload the page after successful reprocessing
+                window.location.reload();
+            }).catch(error => {
+                console.error('Error reprocessing document:', error);
+                alert('Failed to reprocess document. Please try again.');
+            });
+        } else {
+            reprocessPost(route('pdf-documents.reprocess', document.id));
+        }
     };
 
     const handleDelete = () => {
-        deleteDoc(route('pdf-documents.destroy', document.id));
+        if (confirm('Are you sure you want to delete this document?')) {
+            deleteDoc(route('pdf-documents.destroy', document.id));
+        }
+    };
+
+    const toggleDiagramOptions = () => {
+        setShowDiagramOptions(!showDiagramOptions);
     };
 
     return (
@@ -176,14 +369,70 @@ function DocumentActions({ document }: DocumentActionsProps) {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                    onClick={handleReprocess}
-                    disabled={reprocessing || document.status === 'processing'}
-                    className="cursor-pointer"
-                >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    {reprocessing ? 'Reprocessing...' : 'Reprocess with AI'}
-                </DropdownMenuItem>
+                {!showDiagramOptions ? (
+                    <DropdownMenuItem
+                        onClick={toggleDiagramOptions}
+                        disabled={reprocessing || document.status === 'processing'}
+                        className="cursor-pointer"
+                    >
+                        <RefreshCw className="mr-2 h-4 w-4" />
+                        Reprocess with AI
+                    </DropdownMenuItem>
+                ) : (
+                    <>
+                        <div className="px-2 py-1.5 text-sm font-semibold">
+                            Reprocess Options
+                        </div>
+                        <div className="px-2 py-1.5">
+                            <div className="mb-2">
+                                <label className="mb-1 block text-xs">Diagram Type</label>
+                                <Select
+                                    value={selectedDiagramType}
+                                    onValueChange={setSelectedDiagramType}
+                                >
+                                    <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select diagram type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="mindmap">Mind Map</SelectItem>
+                                        <SelectItem value="flowchart">Flowchart</SelectItem>
+                                        <SelectItem value="sequenceDiagram">Sequence Diagram</SelectItem>
+                                        <SelectItem value="classDiagram">Class Diagram</SelectItem>
+                                        <SelectItem value="erDiagram">ER Diagram</SelectItem>
+                                        <SelectItem value="gantt">Gantt Chart</SelectItem>
+                                        <SelectItem value="pie">Pie Chart</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="mb-2 flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    id="include-diagram"
+                                    checked={includeDiagram}
+                                    onChange={(e) => setIncludeDiagram(e.target.checked)}
+                                    className="h-4 w-4 rounded border-gray-300"
+                                />
+                                <label htmlFor="include-diagram" className="text-xs">
+                                    Include diagram in summary
+                                </label>
+                            </div>
+                        </div>
+                        <DropdownMenuItem
+                            onClick={handleReprocess}
+                            disabled={reprocessing}
+                            className="cursor-pointer"
+                        >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            {reprocessing ? 'Reprocessing...' : 'Start Reprocessing'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            onClick={toggleDiagramOptions}
+                            className="cursor-pointer"
+                        >
+                            Cancel
+                        </DropdownMenuItem>
+                    </>
+                )}
                 <DropdownMenuItem
                     onClick={handleDelete}
                     disabled={deleting}

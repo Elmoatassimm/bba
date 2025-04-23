@@ -41,6 +41,8 @@ class PdfDocumentController extends Controller
         $request->validate([
             'pdf_file' => 'required|file|mimes:pdf|max:10240', // 10MB max
             'title' => 'required|string|max:255',
+            'include_diagram' => 'nullable|boolean',
+            'diagram_type' => 'nullable|string',
         ]);
 
         $file = $request->file('pdf_file');
@@ -61,7 +63,15 @@ class PdfDocumentController extends Controller
         try {
             // Process the document immediately for demo purposes
             // In a real app, this would be dispatched to a queue
-            $summary = $aiService->summarizePdf(Storage::disk('public')->path($path));
+            $includeDiagram = $request->has('include_diagram') ? (bool)$request->include_diagram : true;
+            $diagramType = $request->diagram_type ?? 'mindmap';
+
+            $summary = $aiService->summarizePdf(
+                Storage::disk('public')->path($path),
+                $includeDiagram,
+                $diagramType
+            );
+
             $document->update([
                 'summary' => $summary,
                 'status' => 'completed',
@@ -100,12 +110,17 @@ class PdfDocumentController extends Controller
     /**
      * Reprocess an existing PDF document with AI.
      */
-    public function reprocess(PdfDocument $pdfDocument, AIServiceInterface $aiService)
+    public function reprocess(Request $request, PdfDocument $pdfDocument, AIServiceInterface $aiService)
     {
         // Ensure the user can only reprocess their own documents
         if ($pdfDocument->user_id !== auth()->id()) {
             abort(403);
         }
+
+        $request->validate([
+            'include_diagram' => 'nullable|boolean',
+            'diagram_type' => 'nullable|string',
+        ]);
 
         // Update status to processing
         $pdfDocument->update([
@@ -114,7 +129,15 @@ class PdfDocumentController extends Controller
 
         try {
             // Process the document
-            $summary = $aiService->summarizePdf(Storage::disk('public')->path($pdfDocument->file_path));
+            $includeDiagram = $request->has('include_diagram') ? (bool)$request->include_diagram : true;
+            $diagramType = $request->diagram_type ?? 'mindmap';
+
+            $summary = $aiService->summarizePdf(
+                Storage::disk('public')->path($pdfDocument->file_path),
+                $includeDiagram,
+                $diagramType
+            );
+
             $pdfDocument->update([
                 'summary' => $summary,
                 'status' => 'completed',
@@ -155,5 +178,38 @@ class PdfDocumentController extends Controller
 
         return redirect()->route('pdf-documents.index')
             ->with('message', 'Document deleted successfully.');
+    }
+
+    /**
+     * Generate a diagram for a PDF document.
+     */
+    public function generateDiagram(Request $request, PdfDocument $pdfDocument, AIServiceInterface $aiService)
+    {
+        // Ensure the user can only generate diagrams for their own documents
+        if ($pdfDocument->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        $request->validate([
+            'diagram_type' => 'required|string',
+        ]);
+
+        try {
+            // Generate the diagram
+            $diagramResult = $aiService->generateDiagrams(
+                Storage::disk('public')->path($pdfDocument->file_path),
+                $request->diagram_type
+            );
+
+            return response()->json([
+                'success' => true,
+                'diagram' => $diagramResult
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }
