@@ -54,4 +54,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(PdfDocument::class);
     }
+
+    /**
+     * Get the quiz attempts for the user.
+     */
+    public function quizAttempts(): HasMany
+    {
+        return $this->hasMany(QuizAttempt::class);
+    }
 }

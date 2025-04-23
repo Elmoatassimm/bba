@@ -11,4 +11,13 @@ interface AIServiceInterface
      * @return string The summary of the PDF content
      */
     public function summarizePdf(string $filePath): string;
+
+    /**
+     * Generate a quiz based on the content of a PDF file.
+     *
+     * @param string $filePath The path to the PDF file
+     * @param int $numQuestions The number of questions to generate
+     * @return array The generated quiz questions with options and answers
+     */
+    public function generateQuiz(string $filePath, int $numQuestions = 5): array;
 }

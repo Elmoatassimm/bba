@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class PdfDocument extends Model
+class QuizQuestion extends Model
 {
     use HasFactory;
 
@@ -17,27 +17,28 @@ class PdfDocument extends Model
      * @var array<int, string>
      */
     protected $fillable = [
-        'user_id',
-        'title',
-        'filename',
-        'file_path',
-        'summary',
-        'status',
+        'quiz_id',
+        'question',
+        'option_a',
+        'option_b',
+        'option_c',
+        'option_d',
+        'correct_answer',
     ];
 
     /**
-     * Get the user that owns the document.
+     * Get the quiz that the question belongs to.
      */
-    public function user(): BelongsTo
+    public function quiz(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(Quiz::class);
     }
 
     /**
-     * Get the quizzes for the document.
+     * Get the answers for this question.
      */
-    public function quizzes(): HasMany
+    public function answers(): HasMany
     {
-        return $this->hasMany(Quiz::class);
+        return $this->hasMany(QuizAnswer::class);
     }
 }

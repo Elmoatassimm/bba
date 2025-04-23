@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { ArrowLeft, Download, FileText, GraduationCap } from 'lucide-react';
 
 interface PdfDocument {
     id: number;
@@ -48,12 +48,22 @@ export default function Show({ document, pdfUrl }: Props) {
                         </Button>
                         <h1 className="text-2xl font-semibold">{document.title}</h1>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <a href={pdfUrl} download={document.filename} target="_blank" rel="noopener noreferrer">
-                            <Download className="mr-1 h-4 w-4" />
-                            Download PDF
-                        </a>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {document.status === 'completed' && (
+                            <Button size="sm" asChild>
+                                <Link href={`/pdf-documents/${document.id}/quizzes/create`}>
+                                    <GraduationCap className="mr-1 h-4 w-4" />
+                                    Create Quiz
+                                </Link>
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={pdfUrl} download={document.filename} target="_blank" rel="noopener noreferrer">
+                                <Download className="mr-1 h-4 w-4" />
+                                Download PDF
+                            </a>
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
