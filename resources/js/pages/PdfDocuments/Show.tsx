@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Download, FileText } from 'lucide-react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, Download, FileText, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
 
 interface PdfDocument {
     id: number;
@@ -48,12 +49,16 @@ export default function Show({ document, pdfUrl }: Props) {
                         </Button>
                         <h1 className="text-2xl font-semibold">{document.title}</h1>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <a href={pdfUrl} download={document.filename} target="_blank" rel="noopener noreferrer">
-                            <Download className="mr-1 h-4 w-4" />
-                            Download PDF
-                        </a>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={pdfUrl} download={document.filename} target="_blank" rel="noopener noreferrer">
+                                <Download className="mr-1 h-4 w-4" />
+                                Download PDF
+                            </a>
+                        </Button>
+
+                        <DocumentActions document={document} />
+                    </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2">
@@ -135,5 +140,51 @@ export default function Show({ document, pdfUrl }: Props) {
                 </div>
             </div>
         </AppLayout>
+    );
+}
+
+interface DocumentActionsProps {
+    document: PdfDocument;
+}
+
+function DocumentActions({ document }: DocumentActionsProps) {
+    const { processing: reprocessing, post: reprocessPost } = useForm();
+    const { processing: deleting, delete: deleteDoc } = useForm({ onBefore: () => confirm('Are you sure you want to delete this document?') });
+
+    const handleReprocess = () => {
+        reprocessPost(route('pdf-documents.reprocess', document.id));
+    };
+
+    const handleDelete = () => {
+        deleteDoc(route('pdf-documents.destroy', document.id));
+    };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                    <MoreVertical className="h-4 w-4" />
+                    <span className="sr-only">Actions</span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                    onClick={handleReprocess}
+                    disabled={reprocessing || document.status === 'processing'}
+                    className="cursor-pointer"
+                >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {reprocessing ? 'Reprocessing...' : 'Reprocess with AI'}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="cursor-pointer text-red-600 focus:text-red-600"
+                >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {deleting ? 'Deleting...' : 'Delete Document'}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

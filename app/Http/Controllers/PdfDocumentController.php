@@ -20,6 +20,8 @@ class PdfDocumentController extends Controller
 
         return Inertia::render('PdfDocuments/Index', [
             'documents' => $documents,
+            'message' => session('message'),
+            'newDocumentId' => session('newDocumentId'),
         ]);
     }
 
@@ -69,12 +71,14 @@ class PdfDocumentController extends Controller
             // In a production app, you would log the exception details
             // Log::error('PDF processing failed: ' . $e->getMessage(), ['exception' => $e]);
             $document->update([
+                'summary' => 'Error processing document: ' . $e->getMessage(),
                 'status' => 'failed',
             ]);
         }
 
         return redirect()->route('pdf-documents.index')
-            ->with('message', 'PDF uploaded and processed successfully.');
+            ->with('message', 'PDF uploaded and processed successfully.')
+            ->with('newDocumentId', $document->id);
     }
 
     /**
@@ -91,5 +95,65 @@ class PdfDocumentController extends Controller
             'document' => $pdfDocument,
             'pdfUrl' => Storage::disk('public')->url($pdfDocument->file_path),
         ]);
+    }
+
+    /**
+     * Reprocess an existing PDF document with AI.
+     */
+    public function reprocess(PdfDocument $pdfDocument, AIServiceInterface $aiService)
+    {
+        // Ensure the user can only reprocess their own documents
+        if ($pdfDocument->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        // Update status to processing
+        $pdfDocument->update([
+            'status' => 'processing',
+        ]);
+
+        try {
+            // Process the document
+            $summary = $aiService->summarizePdf(Storage::disk('public')->path($pdfDocument->file_path));
+            $pdfDocument->update([
+                'summary' => $summary,
+                'status' => 'completed',
+            ]);
+
+            return redirect()->route('pdf-documents.show', $pdfDocument)
+                ->with('message', 'Document reprocessed successfully.');
+        } catch (\Exception $e) {
+            // Log the error in a real application
+            // In a production app, you would log the exception details
+            // Log::error('PDF reprocessing failed: ' . $e->getMessage(), ['exception' => $e]);
+
+            $pdfDocument->update([
+                'summary' => 'Error processing document: ' . $e->getMessage(),
+                'status' => 'failed',
+            ]);
+
+            return redirect()->route('pdf-documents.show', $pdfDocument)
+                ->with('error', 'Failed to reprocess document.');
+        }
+    }
+
+    /**
+     * Delete a PDF document.
+     */
+    public function destroy(PdfDocument $pdfDocument)
+    {
+        // Ensure the user can only delete their own documents
+        if ($pdfDocument->user_id !== auth()->id()) {
+            abort(403);
+        }
+
+        // Delete the file from storage
+        Storage::disk('public')->delete($pdfDocument->file_path);
+
+        // Delete the database record
+        $pdfDocument->delete();
+
+        return redirect()->route('pdf-documents.index')
+            ->with('message', 'Document deleted successfully.');
     }
 }

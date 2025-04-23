@@ -15,6 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // PDF Document routes
     Route::resource('pdf-documents', PdfDocumentController::class);
+    Route::post('pdf-documents/{pdf_document}/reprocess', [PdfDocumentController::class, 'reprocess'])->name('pdf-documents.reprocess');
 });
 
 require __DIR__.'/settings.php';
