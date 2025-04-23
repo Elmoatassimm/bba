@@ -85,7 +85,7 @@ export default function Index({ documents, newDocumentId, message }: Props) {
                         <div className="prose max-w-none dark:prose-invert">
                             <TypewriterEffect
                                 text={newDocument.summary || ''}
-                                typingSpeed={20}
+                                typingSpeed={1}
                                 onComplete={() => setShowTypewriterEffect(false)}
                                 className="text-sm"
                             />

@@ -20,4 +20,13 @@ interface AIServiceInterface
      * @return array The generated quiz questions with options and answers
      */
     public function generateQuiz(string $filePath, int $numQuestions = 5): array;
+
+    /**
+     * Generate Mermaid diagrams (mind maps, flowcharts, etc.) based on the content of a PDF file.
+     *
+     * @param string $filePath The path to the PDF file
+     * @param string $diagramType The type of diagram to generate (mindmap, flowchart, etc.)
+     * @return array An array containing the diagram code and any additional information
+     */
+    public function generateDiagrams(string $filePath, string $diagramType = 'mindmap'): array;
 }

@@ -1,6 +1,8 @@
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, useForm } from '@inertiajs/react';
@@ -23,9 +25,16 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Create() {
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const { data, setData, post, processing, errors } = useForm<{
+        title: string;
+        pdf_file: File | null;
+        include_diagram: boolean;
+        diagram_type: string;
+    }>({
         title: '',
-        pdf_file: null as File | null,
+        pdf_file: null,
+        include_diagram: true,
+        diagram_type: 'mindmap',
     });
 
     const [dragActive, setDragActive] = useState(false);
@@ -134,6 +143,55 @@ export default function Create() {
                             )}
                         </div>
                         {errors.pdf_file && <p className="text-sm text-red-500">{errors.pdf_file}</p>}
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <h3 className="font-medium">AI Processing Options</h3>
+
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                id="include_diagram"
+                                checked={data.include_diagram}
+                                onChange={(e) => setData('include_diagram', e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <Label htmlFor="include_diagram" className="text-sm font-normal">
+                                Include visual diagram in summary
+                            </Label>
+                        </div>
+
+                        {data.include_diagram && (
+                            <div className="space-y-2">
+                                <Label htmlFor="diagram_type" className="text-sm">Diagram Type</Label>
+                                <Select
+                                    value={data.diagram_type}
+                                    onValueChange={(value) => setData('diagram_type', value)}
+                                >
+                                    <SelectTrigger id="diagram_type">
+                                        <SelectValue placeholder="Select diagram type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="mindmap">Mind Map</SelectItem>
+                                        <SelectItem value="flowchart">Flowchart</SelectItem>
+                                        <SelectItem value="sequenceDiagram">Sequence Diagram</SelectItem>
+                                        <SelectItem value="classDiagram">Class Diagram</SelectItem>
+                                        <SelectItem value="erDiagram">ER Diagram</SelectItem>
+                                        <SelectItem value="gantt">Gantt Chart</SelectItem>
+                                        <SelectItem value="pie">Pie Chart</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-gray-500">
+                                    The AI will generate a {data.diagram_type === 'mindmap' ? 'mind map' :
+                                    data.diagram_type === 'flowchart' ? 'flowchart' :
+                                    data.diagram_type === 'sequenceDiagram' ? 'sequence diagram' :
+                                    data.diagram_type === 'classDiagram' ? 'class diagram' :
+                                    data.diagram_type === 'erDiagram' ? 'entity relationship diagram' :
+                                    data.diagram_type === 'gantt' ? 'Gantt chart' : 'pie chart'}
+                                    to visualize the key concepts in the document.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end">
