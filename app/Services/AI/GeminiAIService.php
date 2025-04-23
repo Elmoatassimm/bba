@@ -61,12 +61,12 @@ class GeminiAIService implements AIServiceInterface
             $response = $this->callGeminiApi($prompt);
 
             // If the response is too generic or empty, try again with a different approach
-            if (strpos($response, 'generic') !== false || 
+            if (strpos($response, 'generic') !== false ||
                 strpos($response, 'lacks specific details') !== false ||
                 strlen($response) < 200) {
-                
+
                 Log::info('Received generic response, trying with a different prompt');
-                
+
                 // Try with a different prompt that focuses on specific content
                 $alternativePrompt = $this->createAlternativeSummarizationPrompt($text);
                 $response = $this->callGeminiApi($alternativePrompt);
@@ -75,12 +75,12 @@ class GeminiAIService implements AIServiceInterface
             return $response;
         } catch (Exception $e) {
             Log::error('Error summarizing PDF with Gemini: ' . $e->getMessage());
-            
+
             // Return a more user-friendly error message
             return "Sorry, there was an error summarizing the PDF: {$e->getMessage()}. Please try again later or with a different PDF file.";
         }
     }
-    
+
     /**
      * Create an alternative prompt for summarization when the first attempt yields generic results
      *
@@ -126,15 +126,15 @@ PROMPT;
             // Use the PDF Parser to extract text from the PDF file
             $parser = new Parser();
             $pdf = $parser->parseFile($filePath);
-            
+
             // Extract text from all pages
             $text = $pdf->getText();
-            
+
             // If text extraction failed or returned empty text, try page by page
             if (empty(trim($text))) {
                 $text = '';
                 $pages = $pdf->getPages();
-                
+
                 foreach ($pages as $page) {
                     $pageText = $page->getText();
                     if (!empty(trim($pageText))) {
@@ -142,35 +142,35 @@ PROMPT;
                     }
                 }
             }
-            
+
             // Clean up the text (remove excessive whitespace, etc.)
             $text = $this->cleanPdfText($text);
-            
+
             // If we still don't have any text, throw an exception
             if (empty(trim($text))) {
                 throw new Exception("Could not extract text from PDF file: {$filePath}");
             }
-            
+
             // Add some metadata to the text
             $filename = basename($filePath);
             $fileSize = filesize($filePath);
             $fileDate = date('Y-m-d', filemtime($filePath));
-            
+
             $metadata = "Document: {$filename}\n";
             $metadata .= "Date: {$fileDate}\n";
             $metadata .= "Size: {$fileSize} bytes\n\n";
-            
+
             return $metadata . $text;
         } catch (Exception $e) {
             Log::error('Error extracting text from PDF: ' . $e->getMessage());
-            
+
             // Fall back to simulated content if extraction fails
             $filename = basename($filePath);
-            return "Failed to extract text from {$filename}. Using simulated content instead.\n\n" . 
+            return "Failed to extract text from {$filename}. Using simulated content instead.\n\n" .
                    $this->generateGenericContent($filename);
         }
     }
-    
+
     /**
      * Clean up text extracted from PDF
      *
@@ -181,13 +181,13 @@ PROMPT;
     {
         // Replace multiple spaces with a single space
         $text = preg_replace('/\s+/', ' ', $text);
-        
+
         // Replace multiple newlines with a double newline
         $text = preg_replace('/\n\s*\n+/', "\n\n", $text);
-        
+
         // Remove any control characters
         $text = preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
-        
+
         return trim($text);
     }
 
@@ -384,9 +384,11 @@ PROMPT;
             ]
         ];
 
+        // For development purposes, we're disabling SSL verification
+        // In production, you should properly configure SSL certificates
         $response = Http::withHeaders([
             'Content-Type' => 'application/json'
-        ])->post($url, $payload);
+        ])->withoutVerifying()->post($url, $payload);
 
         if (!$response->successful()) {
             $errorBody = $response->body();
@@ -517,33 +519,33 @@ PROMPT;
             if (preg_match('/\[\s*\{.*\}\s*\]/s', $response, $matches)) {
                 $jsonStr = $matches[0];
                 $questions = json_decode($jsonStr, true);
-                
+
                 if (json_last_error() === JSON_ERROR_NONE && is_array($questions)) {
                     return $this->validateAndFormatQuestions($questions);
                 }
             }
-            
+
             // If direct JSON parsing fails, try to extract structured content
             // This is a fallback in case the model doesn't return proper JSON
             $questions = [];
             $questionBlocks = preg_split('/\d+\.\s*Question:|\d+\)\s*Question:|Question\s+\d+:|\n\n(?=\d+\.\s*)/i', $response, -1, PREG_SPLIT_NO_EMPTY);
-            
+
             foreach ($questionBlocks as $block) {
                 if (empty(trim($block))) continue;
-                
+
                 $question = $this->extractQuestionFromText($block);
                 if ($question) {
                     $questions[] = $question;
                 }
             }
-            
+
             return $questions;
         } catch (Exception $e) {
             Log::error('Error parsing quiz response: ' . $e->getMessage());
             return [];
         }
     }
-    
+
     /**
      * Extract a structured question from text block
      *
@@ -555,9 +557,9 @@ PROMPT;
         // Try to extract question and options
         $questionMatch = preg_match('/(.+?)(?:\n|\r\n|\r|Options:|Choices:|A\)|a\))/s', $text, $questionMatches);
         if (!$questionMatch) return null;
-        
+
         $question = trim($questionMatches[1]);
-        
+
         // Extract options
         $options = [];
         $optionPatterns = [
@@ -566,7 +568,7 @@ PROMPT;
             'c' => '/(?:C\)|c\)|Option C:|\(C\))\s*(.+?)(?=(?:D\)|d\)|Option D:|\(D\)|$))/s',
             'd' => '/(?:D\)|d\)|Option D:|\(D\))\s*(.+?)(?=(?:Correct Answer:|Answer:|$))/s',
         ];
-        
+
         foreach ($optionPatterns as $key => $pattern) {
             if (preg_match($pattern, $text, $matches)) {
                 $options[$key] = trim($matches[1]);
@@ -575,7 +577,7 @@ PROMPT;
                 return null;
             }
         }
-        
+
         // Extract correct answer
         $correctAnswer = null;
         if (preg_match('/(?:Correct Answer:|Answer:|The correct answer is)\s*([a-dA-D])/i', $text, $matches)) {
@@ -583,17 +585,17 @@ PROMPT;
         } else {
             // Try to find indicators of correct answers in the options
             foreach (['a', 'b', 'c', 'd'] as $option) {
-                if (strpos(strtolower($text), "correct answer: $option") !== false || 
+                if (strpos(strtolower($text), "correct answer: $option") !== false ||
                     strpos(strtolower($text), "correct: $option") !== false) {
                     $correctAnswer = $option;
                     break;
                 }
             }
         }
-        
+
         // If we couldn't determine the correct answer, return null
         if (!$correctAnswer) return null;
-        
+
         return [
             'question' => $question,
             'option_a' => $options['a'],
@@ -603,7 +605,7 @@ PROMPT;
             'correct_answer' => $correctAnswer
         ];
     }
-    
+
     /**
      * Validate and format quiz questions
      *
@@ -613,19 +615,19 @@ PROMPT;
     protected function validateAndFormatQuestions(array $questions): array
     {
         $validQuestions = [];
-        
+
         foreach ($questions as $q) {
             // Check if the question has all required fields
             if (!isset($q['question'], $q['option_a'], $q['option_b'], $q['option_c'], $q['option_d'], $q['correct_answer'])) {
                 continue;
             }
-            
+
             // Ensure correct_answer is a valid option (a, b, c, or d)
             $correctAnswer = strtolower($q['correct_answer']);
             if (!in_array($correctAnswer, ['a', 'b', 'c', 'd'])) {
                 continue;
             }
-            
+
             $validQuestions[] = [
                 'question' => $q['question'],
                 'option_a' => $q['option_a'],
@@ -635,7 +637,182 @@ PROMPT;
                 'correct_answer' => $correctAnswer
             ];
         }
-        
+
         return $validQuestions;
+    }
+
+    /**
+     * Summarize a YouTube video using Gemini LearnLM 2.0 Flash Model
+     *
+     * @param string $videoUrl The URL of the YouTube video
+     * @return array The summary, key points, and actionable takeaways of the video
+     */
+    public function summarizeYouTubeVideo(string $videoUrl): array
+    {
+        try {
+            // Extract the video ID from the URL
+            $videoId = $this->extractYouTubeVideoId($videoUrl);
+
+            if (empty($videoId)) {
+                throw new Exception("Could not extract video ID from the URL: {$videoUrl}");
+            }
+
+            // Create the prompt for video summarization
+            $prompt = $this->createVideoSummarizationPrompt($videoUrl, $videoId);
+
+            // Call Gemini API
+            $response = $this->callGeminiApi($prompt);
+
+            // Parse the response to extract summary, key points, and actionable takeaways
+            return $this->parseVideoSummaryResponse($response);
+        } catch (Exception $e) {
+            Log::error('Error summarizing YouTube video with Gemini: ' . $e->getMessage());
+
+            // Return a structured error response
+            return [
+                'summary' => "Sorry, there was an error summarizing the video: {$e->getMessage()}. Please try again later or with a different video URL.",
+                'key_points' => [],
+                'actionable_takeaways' => []
+            ];
+        }
+    }
+
+    /**
+     * Extract the YouTube video ID from a URL
+     *
+     * @param string $url The YouTube video URL
+     * @return string|null The video ID or null if not found
+     */
+    protected function extractYouTubeVideoId(string $url): ?string
+    {
+        // Regular expression to match YouTube video IDs from various URL formats
+        $pattern = '/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/ ]{11})/i';
+
+        if (preg_match($pattern, $url, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Create a prompt for YouTube video summarization
+     *
+     * @param string $videoUrl The YouTube video URL
+     * @param string $videoId The YouTube video ID
+     * @return string The prompt
+     */
+    protected function createVideoSummarizationPrompt(string $videoUrl, string $videoId): string
+    {
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a comprehensive, educational summary of a YouTube video that follows learning science principles. You will manage cognitive load by presenting relevant, well-structured information, and stimulate curiosity by making the content engaging.
+
+I need you to create a detailed, educational summary of the following YouTube video: {$videoUrl}
+
+Instructions:
+1. Analyze the video content based on the URL and video ID ({$videoId})
+2. Create a concise summary (3-5 sentences) that captures the main purpose and content of the video
+3. Extract 5-7 key points or concepts presented in the video
+4. Identify 3-5 actionable takeaways or practical applications from the video
+5. Focus on educational value, explaining core ideas or skills taught in the video
+6. Tailor the summary for students who want to learn efficiently from the video
+7. Organize the information in a clear, structured format
+8. Use bullet points for key points and actionable takeaways
+
+Format your response as a JSON object with the following structure:
+{
+  "summary": "A concise summary of the video's main content and purpose",
+  "key_points": [
+    "Key point 1",
+    "Key point 2",
+    "etc."
+  ],
+  "actionable_takeaways": [
+    "Actionable takeaway 1",
+    "Actionable takeaway 2",
+    "etc."
+  ]
+}
+
+Please provide a comprehensive, educational summary of this YouTube video in the specified JSON format.
+PROMPT;
+    }
+
+    /**
+     * Parse the response from Gemini API to extract video summary components
+     *
+     * @param string $response The response from Gemini API
+     * @return array The parsed summary, key points, and actionable takeaways
+     */
+    protected function parseVideoSummaryResponse(string $response): array
+    {
+        try {
+            // Try to extract JSON from the response
+            if (preg_match('/\{\s*"summary".*\}\s*/s', $response, $matches)) {
+                $jsonStr = $matches[0];
+                $data = json_decode($jsonStr, true);
+
+                if (json_last_error() === JSON_ERROR_NONE && is_array($data)) {
+                    // Ensure all required fields are present
+                    if (isset($data['summary']) && isset($data['key_points']) && isset($data['actionable_takeaways'])) {
+                        return [
+                            'summary' => $data['summary'],
+                            'key_points' => $data['key_points'],
+                            'actionable_takeaways' => $data['actionable_takeaways']
+                        ];
+                    }
+                }
+            }
+
+            // If JSON parsing fails, try to extract structured content
+            $summary = '';
+            $keyPoints = [];
+            $actionableTakeaways = [];
+
+            // Extract summary (usually the first paragraph)
+            if (preg_match('/(?:Summary|Video Summary):\s*(.+?)(?=\n\n|\r\n\r\n|Key Points|Main Points|$)/s', $response, $matches)) {
+                $summary = trim($matches[1]);
+            }
+
+            // Extract key points
+            if (preg_match('/(?:Key Points|Main Points):\s*(.+?)(?=\n\n|\r\n\r\n|Actionable Takeaways|Practical Applications|$)/s', $response, $matches)) {
+                $pointsText = $matches[1];
+                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $pointsText, $pointMatches);
+                if (!empty($pointMatches[1])) {
+                    $keyPoints = array_map('trim', $pointMatches[1]);
+                }
+            }
+
+            // Extract actionable takeaways
+            if (preg_match('/(?:Actionable Takeaways|Practical Applications):\s*(.+?)(?=\n\n|\r\n\r\n|$)/s', $response, $matches)) {
+                $takeawaysText = $matches[1];
+                preg_match_all('/(?:\*|\-|\d+\.|•)\s*(.+?)(?=\n\*|\n\-|\n\d+\.|\n•|$)/s', $takeawaysText, $takeawayMatches);
+                if (!empty($takeawayMatches[1])) {
+                    $actionableTakeaways = array_map('trim', $takeawayMatches[1]);
+                }
+            }
+
+            // If we couldn't extract structured content, use the whole response as the summary
+            if (empty($summary) && empty($keyPoints) && empty($actionableTakeaways)) {
+                return [
+                    'summary' => trim($response),
+                    'key_points' => [],
+                    'actionable_takeaways' => []
+                ];
+            }
+
+            return [
+                'summary' => $summary,
+                'key_points' => $keyPoints,
+                'actionable_takeaways' => $actionableTakeaways
+            ];
+        } catch (Exception $e) {
+            Log::error('Error parsing video summary response: ' . $e->getMessage());
+            return [
+                'summary' => 'Error parsing the AI response. Please try again.',
+                'key_points' => [],
+                'actionable_takeaways' => []
+            ];
+        }
     }
 }

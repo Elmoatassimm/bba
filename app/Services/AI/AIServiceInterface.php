@@ -20,4 +20,12 @@ interface AIServiceInterface
      * @return array The generated quiz questions with options and answers
      */
     public function generateQuiz(string $filePath, int $numQuestions = 5): array;
+
+    /**
+     * Summarize a YouTube video.
+     *
+     * @param string $videoUrl The URL of the YouTube video
+     * @return array The summary, key points, and actionable takeaways of the video
+     */
+    public function summarizeYouTubeVideo(string $videoUrl): array;
 }
