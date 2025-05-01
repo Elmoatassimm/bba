@@ -1,8 +1,32 @@
 import { type SharedData } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { FileText, BookOpen, Brain, FileQuestion } from 'lucide-react';
 
 export default function Welcome() {
     const { auth } = usePage<SharedData>().props;
+    const [loading, setLoading] = useState(true);
+    const [loadingProgress, setLoadingProgress] = useState(0);
+    const [showFeatures, setShowFeatures] = useState(false);
+
+    useEffect(() => {
+        // Simulate loading progress
+        const interval = setInterval(() => {
+            setLoadingProgress(prev => {
+                if (prev >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        setLoading(false);
+                        setTimeout(() => setShowFeatures(true), 500);
+                    }, 500);
+                    return 100;
+                }
+                return prev + 5;
+            });
+        }, 100);
+
+        return () => clearInterval(interval);
+    }, []);
 
     return (
         <>
@@ -11,6 +35,72 @@ export default function Welcome() {
                 <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
             </Head>
             <div className="flex min-h-screen flex-col items-center bg-[#FDFDFC] p-6 text-[#1b1b18] lg:justify-center lg:p-8 dark:bg-[#0a0a0a]">
+                {loading && (
+                    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#FDFDFC] dark:bg-[#0a0a0a]">
+                        <div className="mb-8 text-4xl font-bold text-[#F53003] dark:text-[#F61500]">
+                            Document AI
+                        </div>
+                        <div className="relative h-2 w-64 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                            <div
+                                className="absolute left-0 top-0 h-full bg-[#F53003] transition-all duration-300 dark:bg-[#F61500]"
+                                style={{ width: `${loadingProgress}%` }}
+                            />
+                        </div>
+                        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                            Loading application...
+                        </div>
+                        <div className="mt-8 flex animate-pulse flex-wrap justify-center gap-4">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff2f2] dark:bg-[#1D0002]">
+                                <FileText className="h-6 w-6 text-[#F53003] dark:text-[#F61500]" />
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff2f2] dark:bg-[#1D0002]">
+                                <Brain className="h-6 w-6 text-[#F53003] dark:text-[#F61500]" />
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fff2f2] dark:bg-[#1D0002]">
+                                <FileQuestion className="h-6 w-6 text-[#F53003] dark:text-[#F61500]" />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showFeatures && (
+                    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white p-4 shadow-lg transition-all duration-500 dark:bg-[#161615] dark:text-white"
+                         style={{ transform: showFeatures ? 'translateY(0)' : 'translateY(100%)' }}>
+                        <div className="mx-auto max-w-4xl">
+                            <h2 className="mb-4 text-xl font-semibold">Key Features</h2>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                                <div className="rounded-lg border p-4 dark:border-gray-700">
+                                    <div className="mb-2 flex items-center">
+                                        <FileText className="mr-2 h-5 w-5 text-[#F53003] dark:text-[#F61500]" />
+                                        <span className="font-medium">PDF Processing</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Upload and process PDF documents with AI-powered analysis</p>
+                                </div>
+                                <div className="rounded-lg border p-4 dark:border-gray-700">
+                                    <div className="mb-2 flex items-center">
+                                        <Brain className="mr-2 h-5 w-5 text-[#F53003] dark:text-[#F61500]" />
+                                        <span className="font-medium">AI Summarization</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Generate intelligent summaries with Gemini LearnLM 2.0 Flash Model</p>
+                                </div>
+                                <div className="rounded-lg border p-4 dark:border-gray-700">
+                                    <div className="mb-2 flex items-center">
+                                        <FileQuestion className="mr-2 h-5 w-5 text-[#F53003] dark:text-[#F61500]" />
+                                        <span className="font-medium">Quiz Generation</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600 dark:text-gray-300">Create interactive quizzes from your documents automatically</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setShowFeatures(false)}
+                                className="mt-4 rounded-sm border border-[#19140035] px-3 py-1 text-xs text-gray-500 hover:border-[#1915014a] dark:border-[#3E3E3A] dark:text-gray-400 dark:hover:border-[#62605b]"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <header className="mb-6 w-full max-w-[335px] text-sm not-has-[nav]:hidden lg:max-w-4xl">
                     <nav className="flex items-center justify-end gap-4">
                         {auth.user ? (
