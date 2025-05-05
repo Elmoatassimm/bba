@@ -16,6 +16,8 @@ class PdfDocumentController extends Controller
      */
     public function index(): Response
     {
+        
+
         $documents = auth()->user()->pdfDocuments()->latest()->get();
 
         return Inertia::render('PdfDocuments/Index', [

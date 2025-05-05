@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Check, FileText, GraduationCap, X } from 'lucide-react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { ArrowLeft, BookOpen, Check, FileText, GraduationCap, Lightbulb, X } from 'lucide-react';
 
 interface QuizQuestion {
     id: number;
@@ -49,9 +49,12 @@ interface Props {
     attempt: QuizAttempt;
     quiz: Quiz;
     document: PdfDocument;
+    hasLearningPlan: boolean;
+    learningPlanId: number | null;
 }
 
-export default function Results({ attempt, quiz, document }: Props) {
+export default function Results({ attempt, quiz, document, hasLearningPlan, learningPlanId }: Props) {
+    const { processing, post } = useForm();
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Dashboard',
@@ -195,19 +198,48 @@ export default function Results({ attempt, quiz, document }: Props) {
                             </div>
                         </div>
 
-                        <div className="flex justify-between">
-                            <Button variant="outline" asChild>
-                                <Link href={`/quizzes/${quiz.id}`}>
-                                    <ArrowLeft className="mr-2 h-4 w-4" />
-                                    Back to Quiz
-                                </Link>
-                            </Button>
-                            <Button asChild>
-                                <Link href={`/quizzes/${quiz.id}/take`}>
-                                    <GraduationCap className="mr-2 h-4 w-4" />
-                                    Retake Quiz
-                                </Link>
-                            </Button>
+                        <div className="flex flex-col gap-4">
+                            <div className="rounded-lg border p-4 bg-blue-50 dark:bg-blue-900/20">
+                                <div className="flex items-center mb-2">
+                                    <Lightbulb className="h-5 w-5 text-blue-500 mr-2" />
+                                    <h3 className="font-medium">Personalized Learning Plan</h3>
+                                </div>
+                                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                                    Generate a personalized learning plan based on your quiz results. The plan will include recommended resources and a learning roadmap to help you improve your knowledge.
+                                </p>
+                                {hasLearningPlan ? (
+                                    <Button asChild className="w-full">
+                                        <Link href={`/learning-plans/${learningPlanId}`}>
+                                            <BookOpen className="mr-2 h-4 w-4" />
+                                            View Learning Plan
+                                        </Link>
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        className="w-full"
+                                        onClick={() => post(`/quiz-attempts/${attempt.id}/learning-plans`)}
+                                        disabled={processing}
+                                    >
+                                        <Lightbulb className="mr-2 h-4 w-4" />
+                                        {processing ? 'Generating...' : 'Generate Learning Plan'}
+                                    </Button>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between">
+                                <Button variant="outline" asChild>
+                                    <Link href={`/quizzes/${quiz.id}`}>
+                                        <ArrowLeft className="mr-2 h-4 w-4" />
+                                        Back to Quiz
+                                    </Link>
+                                </Button>
+                                <Button asChild>
+                                    <Link href={`/quizzes/${quiz.id}/take`}>
+                                        <GraduationCap className="mr-2 h-4 w-4" />
+                                        Retake Quiz
+                                    </Link>
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>

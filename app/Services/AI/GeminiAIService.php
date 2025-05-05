@@ -1140,4 +1140,227 @@ PROMPT;
 
         return $result;
     }
+
+    /**
+     * Generate learning resources and recommendations based on quiz results.
+     *
+     * @param string $filePath The path to the PDF file
+     * @param array $incorrectAnswers Array of incorrect answers with question details
+     * @return array The generated learning resources and recommendations
+     */
+    public function generateLearningResources(string $filePath, array $incorrectAnswers): array
+    {
+        try {
+            // Extract text from the PDF
+            $text = $this->extractTextFromPdf($filePath);
+
+            if (empty($text)) {
+                throw new Exception("Could not extract text from the PDF file.");
+            }
+
+            // Truncate text if it's too long (Gemini has token limits)
+            $text = $this->truncateText($text, 30000);
+
+            // Create the prompt for learning resource generation
+            $prompt = $this->createLearningResourcesPrompt($text, $incorrectAnswers);
+
+            // Call Gemini API
+            $response = $this->callGeminiApi($prompt);
+
+            // Parse the response to extract learning resources and recommendations
+            $resources = $this->parseLearningResourcesResponse($response);
+
+            // Generate a learning roadmap diagram
+            $roadmapPrompt = $this->createLearningRoadmapPrompt($incorrectAnswers);
+            $roadmapResponse = $this->callGeminiApi($roadmapPrompt);
+            $roadmapDiagram = $this->parseDiagramResponse($roadmapResponse, 'flowchart');
+
+            // Combine resources and roadmap
+            return [
+                'resources' => $resources,
+                'roadmap' => $roadmapDiagram['diagram_code'] ?? '',
+                'roadmap_explanation' => $roadmapDiagram['explanation'] ?? ''
+            ];
+        } catch (Exception $e) {
+            Log::error('Error generating learning resources with Gemini: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Create a prompt for learning resource generation using LearnLM 2.0 Flash Model
+     *
+     * @param string $text The document text
+     * @param array $incorrectAnswers Array of incorrect answers with question details
+     * @return string The prompt
+     */
+    protected function createLearningResourcesPrompt(string $text, array $incorrectAnswers): string
+    {
+        // Format the incorrect answers for the prompt
+        $formattedIncorrectAnswers = '';
+        foreach ($incorrectAnswers as $index => $answer) {
+            $formattedIncorrectAnswers .= "Question " . ($index + 1) . ": " . $answer['question'] . "\n";
+            $formattedIncorrectAnswers .= "Correct Answer: " . $answer['correct_answer'] . "\n";
+            $formattedIncorrectAnswers .= "User's Answer: " . $answer['selected_answer'] . "\n\n";
+        }
+
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to analyze a learner's quiz performance and create personalized learning resources that follow learning science principles. You will adapt to the learner by identifying knowledge gaps, manage cognitive load by organizing resources by topic, and deepen metacognition by explaining why each resource is relevant.
+
+I need you to analyze the following quiz results and create personalized learning resources based on the document content.
+
+Document content:
+$text
+
+Quiz results (incorrect answers only):
+$formattedIncorrectAnswers
+
+Instructions:
+1. Analyze the incorrect answers to identify specific knowledge gaps and misconceptions
+2. Group the knowledge gaps by topic or concept
+3. For each topic, provide:
+   a. A clear explanation of the concept
+   b. 2-3 specific learning resources (articles, videos, books, etc.)
+   c. Practice exercises or self-assessment questions
+4. Prioritize the topics based on importance (1 = highest priority, 5 = lowest)
+5. For each resource, include:
+   - Title/name
+   - Brief description
+   - URL or reference (if applicable)
+   - Resource type (article, video, book, etc.)
+6. Format your response as JSON with the following structure:
+```json
+{
+  "topics": [
+    {
+      "name": "Topic Name",
+      "description": "Brief explanation of the concept",
+      "priority": 1,
+      "resources": [
+        {
+          "title": "Resource Title",
+          "description": "Brief description",
+          "url": "https://example.com/resource",
+          "type": "article"
+        }
+      ],
+      "practice": [
+        "Practice question 1?",
+        "Practice question 2?"
+      ]
+    }
+  ],
+  "summary": "Overall summary of knowledge gaps and learning plan"
+}
+```
+
+Provide a comprehensive, personalized learning plan that addresses the specific knowledge gaps identified in the quiz results.
+PROMPT;
+    }
+
+    /**
+     * Create a prompt for generating a learning roadmap diagram
+     *
+     * @param array $incorrectAnswers Array of incorrect answers with question details
+     * @return string The prompt
+     */
+    protected function createLearningRoadmapPrompt(array $incorrectAnswers): string
+    {
+        // Format the incorrect answers for the prompt
+        $formattedIncorrectAnswers = '';
+        foreach ($incorrectAnswers as $index => $answer) {
+            $formattedIncorrectAnswers .= "Question " . ($index + 1) . ": " . $answer['question'] . "\n";
+            $formattedIncorrectAnswers .= "Correct Answer: " . $answer['correct_answer'] . "\n";
+            $formattedIncorrectAnswers .= "User's Answer: " . $answer['selected_answer'] . "\n\n";
+        }
+
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to create a very simple visual learning roadmap based on a learner's quiz performance. You will create a Mermaid mindmap diagram that shows the recommended learning path.
+
+Quiz results (incorrect answers only):
+$formattedIncorrectAnswers
+
+Instructions:
+1. Analyze the incorrect answers to identify knowledge gaps
+2. Create a VERY SIMPLE Mermaid mindmap diagram that shows:
+   - Main topic (central node)
+   - Key topics to learn (based on knowledge gaps)
+   - Subtopics for each key topic
+3. Use ONLY the following syntax:
+   - Start with exactly "mindmap"
+   - Use "root((Main Topic))" for the central node
+   - Use proper indentation for hierarchy (2 spaces per level)
+   - Keep node text very short (3-5 words maximum)
+   - NO special characters or fancy formatting
+4. Keep the mindmap extremely simple with 3-5 main branches maximum
+5. Each main branch should have 2-3 subtopics maximum
+
+Before the diagram, provide a brief explanation of the learning roadmap.
+After the diagram, provide a brief interpretation of how to use the roadmap.
+
+IMPORTANT: The diagram MUST be extremely simple and follow the exact syntax rules above. Do not use any advanced Mermaid features. The diagram should look like this example:
+
+```mermaid
+mindmap
+  root((Main Topic))
+    Topic 1
+      Subtopic 1.1
+      Subtopic 1.2
+    Topic 2
+      Subtopic 2.1
+      Subtopic 2.2
+    Topic 3
+      Subtopic 3.1
+      Subtopic 3.2
+```
+PROMPT;
+    }
+
+    /**
+     * Parse the response from Gemini API to extract learning resources
+     *
+     * @param string $response The response from Gemini API
+     * @return array The parsed learning resources
+     */
+    protected function parseLearningResourcesResponse(string $response): array
+    {
+        // Extract the JSON from the response
+        if (preg_match('/```json\s*([\s\S]*?)\s*```/', $response, $matches)) {
+            $jsonString = $matches[1];
+
+            // Decode the JSON
+            $data = json_decode($jsonString, true);
+
+            // If JSON decoding failed, try to clean up the JSON string
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                // Try to fix common JSON formatting issues
+                $jsonString = preg_replace('/,\s*}/', '}', $jsonString);
+                $jsonString = preg_replace('/,\s*]/', ']', $jsonString);
+
+                // Try decoding again
+                $data = json_decode($jsonString, true);
+
+                // If still failing, log the error and return an empty array
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    Log::error('Failed to parse learning resources JSON: ' . json_last_error_msg(), [
+                        'response' => $response,
+                        'extracted_json' => $jsonString
+                    ]);
+
+                    return [
+                        'topics' => [],
+                        'summary' => 'Failed to parse learning resources. Please try again.'
+                    ];
+                }
+            }
+
+            return $data;
+        }
+
+        // If no JSON found, try to parse the response as plain text
+        return [
+            'topics' => [],
+            'summary' => 'The AI generated a response but it was not in the expected format. Please try again.'
+        ];
+    }
 }

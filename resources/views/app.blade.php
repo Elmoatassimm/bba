@@ -35,6 +35,21 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
 
+        <!-- Add Mermaid.js directly -->
+        <script type="module">
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+            document.addEventListener('DOMContentLoaded', () => {
+                console.log('Initializing Mermaid from global script');
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+                    securityLevel: 'loose',
+                    fontFamily: 'Instrument Sans, sans-serif',
+                });
+            });
+        </script>
+
         @routes
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])

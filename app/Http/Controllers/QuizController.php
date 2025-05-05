@@ -6,6 +6,7 @@ use App\Models\PdfDocument;
 use App\Models\Quiz;
 use App\Models\QuizAttempt;
 use App\Models\QuizQuestion;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use App\Services\AI\AIServiceInterface;
 use Illuminate\Http\Request;
@@ -22,7 +23,7 @@ class QuizController extends Controller
     {
         // Get all quizzes for the user's documents with the pdf_document relationship eager loaded
         $quizzes = Quiz::whereHas('pdfDocument', function ($query) {
-            $query->where('user_id', auth()->id());
+            $query->where('user_id', Auth::id());
         })
             ->with('pdfDocument') // Eager load the pdf_document relationship
             ->latest()
@@ -39,7 +40,7 @@ class QuizController extends Controller
     public function create(PdfDocument $pdfDocument): Response
     {
         // Ensure the user can only create quizzes for their own documents
-        if ($pdfDocument->user_id !== auth()->id()) {
+        if ($pdfDocument->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -54,7 +55,7 @@ class QuizController extends Controller
     public function store(Request $request, PdfDocument $pdfDocument, AIServiceInterface $aiService)
     {
         // Ensure the user can only create quizzes for their own documents
-        if ($pdfDocument->user_id !== auth()->id()) {
+        if ($pdfDocument->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -116,7 +117,7 @@ class QuizController extends Controller
     public function show(Quiz $quiz): Response
     {
         // Ensure the user can only view quizzes for their own documents
-        if ($quiz->pdfDocument->user_id !== auth()->id()) {
+        if ($quiz->pdfDocument->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -135,7 +136,7 @@ class QuizController extends Controller
     public function start(Quiz $quiz): Response
     {
         // Ensure the user can only attempt quizzes for their own documents
-        if ($quiz->pdfDocument->user_id !== auth()->id()) {
+        if ($quiz->pdfDocument->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -154,7 +155,7 @@ class QuizController extends Controller
     public function submit(Request $request, Quiz $quiz)
     {
         // Ensure the user can only submit quizzes for their own documents
-        if ($quiz->pdfDocument->user_id !== auth()->id()) {
+        if ($quiz->pdfDocument->user_id !== Auth::id()) {
             abort(403);
         }
 
@@ -188,7 +189,7 @@ class QuizController extends Controller
         // Create the quiz attempt
         $attempt = QuizAttempt::create([
             'quiz_id' => $quiz->id,
-            'user_id' => auth()->id(),
+            'user_id' => Auth::id(),
             'score' => $score,
             'total_questions' => $quiz->questions->count(),
             'completed_at' => now(),
@@ -207,17 +208,23 @@ class QuizController extends Controller
     public function results(QuizAttempt $quizAttempt): Response
     {
         // Ensure the user can only view their own quiz attempts
-        if ($quizAttempt->user_id !== auth()->id()) {
+        if ($quizAttempt->user_id !== Auth::id()) {
             abort(403);
         }
 
-        // Load the quiz attempt with its answers, questions, and quiz
-        $quizAttempt->load(['answers.question', 'quiz.pdfDocument']);
+        // Load the quiz attempt with its answers, questions, quiz, and learning plan
+        $quizAttempt->load(['answers.question', 'quiz.pdfDocument', 'learningPlan']);
+
+        // Check if a learning plan exists for this quiz attempt
+        $hasLearningPlan = $quizAttempt->learningPlan->count() > 0;
+        $learningPlanId = $hasLearningPlan ? $quizAttempt->learningPlan->first()->id : null;
 
         return Inertia::render('Quizzes/Results', [
             'attempt' => $quizAttempt,
             'quiz' => $quizAttempt->quiz,
             'document' => $quizAttempt->quiz->pdfDocument,
+            'hasLearningPlan' => $hasLearningPlan,
+            'learningPlanId' => $learningPlanId,
         ]);
     }
 }

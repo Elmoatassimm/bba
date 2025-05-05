@@ -281,7 +281,175 @@ const convertMindmapToFlowchart = (chart) => {
     return flowchart;
 };
 
-// Create a simplified version of the chart for fallback
+// Function to convert a flowchart to a mindmap
+const convertFlowchartToMindmap = (chart) => {
+    try {
+        // Extract nodes and connections from the flowchart
+        const lines = chart.split('\n');
+        const nodes = {};
+        const connections = [];
+        let rootNodeId = null;
+
+        // Find the first node as the root
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            // Skip empty lines and non-node/connection lines
+            if (!line || line.startsWith('style') || line.startsWith('classDef')) continue;
+
+            // Extract node definitions (e.g., A[Node Label])
+            const nodeMatch = line.match(/^\s*([A-Za-z0-9]+)\s*\[([^\]]+)\]/);
+            if (nodeMatch) {
+                const id = nodeMatch[1];
+                const label = nodeMatch[2];
+                nodes[id] = label;
+
+                // The first node is usually the root
+                if (rootNodeId === null) {
+                    rootNodeId = id;
+                }
+                continue;
+            }
+
+            // Extract connections (e.g., A --> B)
+            const connectionMatch = line.match(/^\s*([A-Za-z0-9]+)\s*--+>\s*([A-Za-z0-9]+)/);
+            if (connectionMatch) {
+                connections.push({
+                    from: connectionMatch[1],
+                    to: connectionMatch[2]
+                });
+            }
+        }
+
+        // If no nodes found, return a simple mindmap
+        if (Object.keys(nodes).length === 0) {
+            return 'mindmap\n  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
+        }
+
+        // Build a tree structure from connections
+        const tree = {};
+        const visited = new Set();
+
+        // Find the root node (node with no incoming connections)
+        if (!rootNodeId) {
+            const allNodes = new Set(Object.keys(nodes));
+            const destinationNodes = new Set(connections.map(c => c.to));
+
+            for (const node of allNodes) {
+                if (!destinationNodes.has(node)) {
+                    rootNodeId = node;
+                    break;
+                }
+            }
+
+            // If still no root found, use the first node
+            if (!rootNodeId && allNodes.size > 0) {
+                rootNodeId = Array.from(allNodes)[0];
+            }
+        }
+
+        // Build the tree recursively
+        function buildTree(nodeId) {
+            if (visited.has(nodeId)) return;
+            visited.add(nodeId);
+
+            tree[nodeId] = [];
+
+            for (const conn of connections) {
+                if (conn.from === nodeId) {
+                    tree[nodeId].push(conn.to);
+                    buildTree(conn.to);
+                }
+            }
+        }
+
+        if (rootNodeId) {
+            buildTree(rootNodeId);
+        }
+
+        // Convert the tree to a mindmap
+        let mindmap = 'mindmap\n';
+
+        // Add the root node
+        if (rootNodeId && nodes[rootNodeId]) {
+            mindmap += `  root((${nodes[rootNodeId]}))\n`;
+
+            // Add first level children
+            for (const childId of tree[rootNodeId] || []) {
+                mindmap += `    ${nodes[childId]}\n`;
+
+                // Add second level children (grandchildren)
+                for (const grandchildId of tree[childId] || []) {
+                    mindmap += `      ${nodes[grandchildId]}\n`;
+                }
+            }
+        } else {
+            // Fallback if no proper root found
+            mindmap += '  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
+        }
+
+        return mindmap;
+    } catch (error) {
+        console.error('Error converting flowchart to mindmap:', error);
+        return 'mindmap\n  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
+    }
+};
+
+// Function to create a simple mindmap from any diagram type
+const createSimpleMindmap = (chart) => {
+    try {
+        // Extract potential topic from the first few lines
+        const lines = chart.split('\n');
+        let mainTopic = 'Main Topic';
+
+        // Look for potential titles or main concepts
+        for (let i = 0; i < Math.min(5, lines.length); i++) {
+            const line = lines[i].trim();
+
+            // Look for title declarations
+            const titleMatch = line.match(/title\s+(.+)$/);
+            if (titleMatch) {
+                mainTopic = titleMatch[1];
+                break;
+            }
+
+            // Look for class or participant declarations
+            const classMatch = line.match(/class\s+(\w+)/);
+            if (classMatch) {
+                mainTopic = classMatch[1];
+                break;
+            }
+
+            // Look for entity declarations
+            const entityMatch = line.match(/(\w+)\s+{/);
+            if (entityMatch) {
+                mainTopic = entityMatch[1];
+                break;
+            }
+        }
+
+        // Create a simple mindmap with the extracted topic
+        let mindmap = `mindmap\n  root((${mainTopic}))\n`;
+
+        // Add some generic topics
+        mindmap += '    Overview\n';
+        mindmap += '      Key Concepts\n';
+        mindmap += '      Definitions\n';
+        mindmap += '    Components\n';
+        mindmap += '      Structure\n';
+        mindmap += '      Relationships\n';
+        mindmap += '    Applications\n';
+        mindmap += '      Use Cases\n';
+        mindmap += '      Examples\n';
+
+        return mindmap;
+    } catch (error) {
+        console.error('Error creating simple mindmap:', error);
+        return 'mindmap\n  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
+    }
+};
+
+// Create a simplified version of the chart for fallback - always returns a mindmap
 const createSimplifiedChart = (chart) => {
     // Special handling for mindmaps with sub() syntax
     if (chart.includes('mindmap') && chart.includes('sub(')) {
@@ -290,37 +458,49 @@ const createSimplifiedChart = (chart) => {
             const rootMatch = chart.match(/root\(\(([^)]+)\)\)/);
             const rootTitle = rootMatch ? rootMatch[1] : 'Main Topic';
 
-            // Create a simple flowchart with the main topics
-            return convertMindmapToFlowchart(chart);
+            // Try to fix the mindmap syntax
+            return fixMindmapSyntax(chart);
         } catch (error) {
             console.error('Error creating simplified mindmap:', error);
-            // Very simple fallback
-            return 'flowchart TD\n  A[Software Engineering] --> B[Key Concepts]\n  A --> C[Principles]\n  A --> D[Lifecycle]';
+            // Very simple fallback mindmap
+            return 'mindmap\n  root((Main Topic))\n    Key Concepts\n    Principles\n    Applications';
         }
     }
 
-    // For other diagrams, try our general simplification
-    const simplified = simplifyDiagram(chart);
+    // If it's already a mindmap, try to simplify it
+    if (chart.includes('mindmap')) {
+        try {
+            // For complex mindmaps, create a simpler version
+            if (chart.split('\n').length > 20) {
+                // Extract the root title if possible
+                const rootMatch = chart.match(/root\(\(([^)]+)\)\)/);
+                const rootTitle = rootMatch ? rootMatch[1] : 'Main Topic';
 
-    // If the chart is still the same, apply more aggressive simplification
-    if (simplified === chart) {
-        if (chart.includes('mindmap')) {
-            return convertMindmapToFlowchart(chart);
-        } else if (chart.includes('flowchart') || chart.includes('graph')) {
-            // Create a very basic flowchart with just a few nodes
-            return 'flowchart TD\n  A[Main] --> B[Process]\n  B --> C[Result]';
-        } else if (chart.includes('sequenceDiagram')) {
-            // Create a simplified sequence diagram
-            return 'sequenceDiagram\n  participant A as System\n  participant B as User\n  A->>B: Process Document\n  B-->>A: Acknowledge';
-        } else if (chart.includes('classDiagram')) {
-            // Create a simplified class diagram
-            return 'classDiagram\n  class Document {\n    +String title\n    +process()\n  }';
-        } else if (chart.includes('erDiagram')) {
-            // Create a simplified ER diagram
-            return 'erDiagram\n  DOCUMENT ||--o{ SECTION : contains';
+                return `mindmap\n  root((${rootTitle}))\n    Key Concepts\n    Principles\n    Applications`;
+            }
+
+            // For simpler mindmaps, return as is
+            return chart;
+        } catch (error) {
+            console.error('Error simplifying mindmap:', error);
+            return 'mindmap\n  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
         }
     }
-    return simplified;
+
+    // For any other diagram type, convert to a mindmap
+    try {
+        if (chart.includes('flowchart') || chart.includes('graph')) {
+            // Convert flowchart to mindmap
+            return convertFlowchartToMindmap(chart);
+        } else {
+            // For other diagrams, create a simple mindmap
+            return createSimpleMindmap(chart);
+        }
+    } catch (error) {
+        console.error('Error converting to mindmap:', error);
+        // Default fallback mindmap
+        return 'mindmap\n  root((Main Topic))\n    Topic 1\n    Topic 2\n    Topic 3';
+    }
 };
 
 export default function MermaidDiagram({ chart, className = '', config = {} }) {
@@ -335,40 +515,49 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
         if (!chart) return;
 
         try {
-            // Special handling for mindmaps with sub() syntax
-            if (chart.includes('mindmap') && chart.includes('sub(')) {
-                try {
-                    // First try direct conversion to standard mindmap format
-                    const converted = convertSubMindmapToStandard(chart);
-                    console.log('Converted sub() mindmap to standard format');
+            // Check if the chart is a mindmap
+            if (chart.includes('mindmap')) {
+                // Special handling for mindmaps with sub() syntax
+                if (chart.includes('sub(')) {
+                    try {
+                        // First try direct conversion to standard mindmap format
+                        const converted = convertSubMindmapToStandard(chart);
+                        console.log('Converted sub() mindmap to standard format');
 
-                    // For mindmaps, try direct rendering first
-                    if (converted.split('\n').length < 50) {
-                        setUseDirectRendering(true);
-                    } else {
-                        // For very complex mindmaps, use SVG rendering
+                        // For mindmaps, try direct rendering first
+                        if (converted.split('\n').length < 50) {
+                            setUseDirectRendering(true);
+                        } else {
+                            // For very complex mindmaps, use SVG rendering
+                            setUseDirectRendering(false);
+                        }
+
+                        setProcessedChart(converted);
+                    } catch (error) {
+                        console.error('Error converting mindmap format:', error);
+                        // If that fails, try to simplify
+                        setProcessedChart(simplifyDiagram(chart));
                         setUseDirectRendering(false);
                     }
-
-                    setProcessedChart(converted);
-                } catch (error) {
-                    console.error('Error converting mindmap format:', error);
-                    // If that fails, try to simplify
-                    setProcessedChart(simplifyDiagram(chart));
-                    setUseDirectRendering(false);
+                } else {
+                    // For standard mindmaps, use direct rendering
+                    setProcessedChart(chart);
+                    setUseDirectRendering(true);
                 }
-            } else if (chart.includes('mindmap')) {
-                // For standard mindmaps, use direct rendering
-                setProcessedChart(chart);
-                setUseDirectRendering(true);
             } else {
-                // For other diagrams, use general simplification
-                setProcessedChart(simplifyDiagram(chart));
+                // For all other diagram types, preserve the original format
+                console.log('Rendering original diagram format');
+
+                // Use the original chart
+                setProcessedChart(chart);
+
+                // Use SVG rendering for non-mindmap diagrams
                 setUseDirectRendering(false);
             }
         } catch (error) {
             console.error('Error processing chart:', error);
-            setProcessedChart(chart); // Use original as fallback
+            // Create a fallback diagram - simple flowchart
+            setProcessedChart('flowchart TD\n  A[Error] --> B[Please try again]');
             setUseDirectRendering(false);
         }
     }, [chart]);
@@ -382,13 +571,22 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
     const handleRenderError = (err) => {
         console.error('Mermaid rendering error:', err);
 
+        // Determine diagram type for better error messages
+        let diagramType = 'diagram';
+        if (chart.includes('mindmap')) diagramType = 'mindmap';
+        else if (chart.includes('flowchart') || chart.includes('graph')) diagramType = 'flowchart';
+        else if (chart.includes('sequenceDiagram')) diagramType = 'sequence diagram';
+        else if (chart.includes('classDiagram')) diagramType = 'class diagram';
+        else if (chart.includes('gantt')) diagramType = 'Gantt chart';
+        else if (chart.includes('stateDiagram')) diagramType = 'state diagram';
+
         // Provide specific error messages based on the error and chart type
         if (err.message && err.message.includes('Could not find a suitable point')) {
-            setError('The diagram is too complex to render. A simplified version will be shown instead.');
+            setError(`The ${diagramType} is too complex to render. A simplified version will be shown instead.`);
         } else if (err.message && err.message.includes('transform: Expected number')) {
-            setError('There was an issue with diagram layout. A simplified version will be shown instead.');
+            setError(`There was an issue with ${diagramType} layout. A simplified version will be shown instead.`);
         } else if (err.message && err.message.includes('Failed to execute \'removeChild\' on \'Node\'')) {
-            setError('There was an issue with the diagram rendering. Trying a different approach...');
+            setError(`There was an issue with the ${diagramType} rendering. Trying a different approach...`);
             // This is a DOM manipulation error, try again with a different approach
             setTimeout(() => {
                 setUseDirectRendering(prev => !prev); // Toggle the rendering method
@@ -396,12 +594,8 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
             }, 500);
         } else if (chart.includes('mindmap') && chart.includes('sub(')) {
             setError('The mindmap syntax appears to be using sub() which may not be supported. We attempted to fix it automatically, but there might still be issues.');
-        } else if (chart.includes('mindmap')) {
-            setError('There was an error rendering the mindmap. Mindmaps can be complex - try simplifying it or using a different diagram type.');
-        } else if ((chart.includes('flowchart') || chart.includes('graph')) && chart.split('\n').length > 20) {
-            setError('This flowchart is too complex to render properly. A simplified version will be shown instead.');
         } else {
-            setError(`Failed to render diagram: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            setError(`Failed to render ${diagramType}: ${err instanceof Error ? err.message : 'Unknown error'}`);
         }
     };
 
@@ -445,7 +639,28 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
 
     // If there's an error, show the error and a simplified version
     if (error) {
-        const simplifiedChart = createSimplifiedChart(chart);
+        // Create a simple fallback diagram based on the original diagram type
+        let simplifiedChart = 'flowchart TD\n  A[Error] --> B[Please try again]';
+        let diagramType = 'diagram';
+
+        if (chart.includes('mindmap')) {
+            simplifiedChart = createSimplifiedChart(chart);
+            diagramType = 'mindmap';
+        } else if (chart.includes('flowchart') || chart.includes('graph')) {
+            diagramType = 'flowchart';
+        } else if (chart.includes('sequenceDiagram')) {
+            diagramType = 'sequence diagram';
+            simplifiedChart = 'sequenceDiagram\n  participant A\n  participant B\n  A->>B: Hello\n  B-->>A: Hi there';
+        } else if (chart.includes('classDiagram')) {
+            diagramType = 'class diagram';
+            simplifiedChart = 'classDiagram\n  class A {\n    +String data\n  }\n  class B {\n    +method()\n  }';
+        } else if (chart.includes('gantt')) {
+            diagramType = 'Gantt chart';
+            simplifiedChart = 'gantt\n  title Simple Gantt\n  dateFormat YYYY-MM-DD\n  section Section\n  Task 1 :a1, 2023-01-01, 7d';
+        } else if (chart.includes('stateDiagram')) {
+            diagramType = 'state diagram';
+            simplifiedChart = 'stateDiagram-v2\n  [*] --> State1\n  State1 --> [*]';
+        }
 
         return (
             <>
@@ -455,9 +670,9 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
                     <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="font-medium">Error rendering diagram</p>
+                                <p className="font-medium">Error rendering {diagramType}</p>
                                 <p>{error}</p>
-                                <p className="mt-2 text-xs">Try selecting a different diagram type or refreshing the page.</p>
+                                <p className="mt-2 text-xs">Try refreshing the page or simplifying the diagram content.</p>
                             </div>
                             <button
                                 onClick={handleRetry}
@@ -473,7 +688,7 @@ export default function MermaidDiagram({ chart, className = '', config = {} }) {
                     {/* Try to render a simplified version */}
                     <div className="rounded-md border p-4">
                         <div className="mb-2 flex items-center justify-between">
-                            <p className="text-sm font-medium">Simplified Diagram:</p>
+                            <p className="text-sm font-medium">Simplified {diagramType}:</p>
                             <button
                                 onClick={() => setIsExpanded(true)}
                                 className="rounded-full bg-white/80 p-1.5 text-gray-600 shadow-sm hover:bg-white hover:text-gray-900 dark:bg-gray-800/80 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"

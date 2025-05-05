@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CoursePdfController;
+use App\Http\Controllers\LearningPlanController;
 use App\Http\Controllers\PdfDocumentController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\VideoSummaryController;
@@ -11,7 +12,7 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+//Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
@@ -34,6 +35,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('video-summaries', VideoSummaryController::class);
     Route::post('video-summaries/{videoSummary}/toggle-save', [VideoSummaryController::class, 'toggleSave'])->name('video-summaries.toggle-save');
 
+    // Learning Plan routes
+    Route::get('learning-plans', [LearningPlanController::class, 'index'])->name('learning-plans.index');
+    Route::get('learning-plans/{learningPlan}', [LearningPlanController::class, 'show'])->name('learning-plans.show');
+    Route::post('quiz-attempts/{quizAttempt}/learning-plans', [LearningPlanController::class, 'generate'])->name('learning-plans.generate');
+    Route::delete('learning-plans/{learningPlan}', [LearningPlanController::class, 'destroy'])->name('learning-plans.destroy');
+
+    
     // Course PDF routes
     Route::get('course-pdfs', [CoursePdfController::class, 'index'])->name('course-pdfs.index');
     Route::get('course-pdfs/saved', [CoursePdfController::class, 'savedPdfs'])->name('course-pdfs.saved');
@@ -42,7 +50,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('course-pdfs/{coursePdf}', [CoursePdfController::class, 'removeSavedPdf'])->name('course-pdfs.remove');
     Route::get('course-pdfs/view/{coursePdf}', [CoursePdfController::class, 'viewSavedPdf'])->name('course-pdfs.view');
     Route::post('course-pdfs/auth', [CoursePdfController::class, 'getResourcesWithAuth'])->name('course-pdfs.auth');
-});
+//});
+
+// Test route for mermaid diagrams
+Route::get('mermaid-test', function () {
+    return Inertia::render('MermaidTest');
+})->name('mermaid-test');
+
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

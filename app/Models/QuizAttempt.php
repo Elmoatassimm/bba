@@ -56,4 +56,12 @@ class QuizAttempt extends Model
     {
         return $this->hasMany(QuizAnswer::class);
     }
+
+    /**
+     * Get the learning plan for the attempt.
+     */
+    public function learningPlan(): HasMany
+    {
+        return $this->hasMany(LearningPlan::class);
+    }
 }
