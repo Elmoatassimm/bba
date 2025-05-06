@@ -3,11 +3,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import MermaidDiagram from '@/components/MermaidDiagram';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
+import TextExplanationSidebar from '@/components/TextExplanationSidebar';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Download, GraduationCap, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface PdfDocument {
     id: number;
@@ -28,6 +29,13 @@ export default function Show({ document, pdfUrl }: Props) {
     const [isGeneratingDiagram, setIsGeneratingDiagram] = useState<boolean>(false);
     const [diagramData, setDiagramData] = useState<any>(null);
     const [diagramError, setDiagramError] = useState<string | null>(null);
+
+    // Text explanation sidebar state
+    const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+    const [selectedText, setSelectedText] = useState<string>('');
+    const [manualText, setManualText] = useState<string>('');
+    const [showTextInput, setShowTextInput] = useState<boolean>(false);
+    const pdfIframeRef = useRef<HTMLIFrameElement | null>(null);
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -76,6 +84,9 @@ export default function Show({ document, pdfUrl }: Props) {
         }
     }, [document.summary]);
 
+    // We're not using the automatic text selection anymore since we're using a manual approach
+    // with the textarea input instead
+
     // Function to generate a new diagram
     const generateDiagram = async () => {
         setIsGeneratingDiagram(true);
@@ -116,6 +127,12 @@ export default function Show({ document, pdfUrl }: Props) {
         }
     };
 
+    // Handle closing the sidebar
+    const handleCloseSidebar = () => {
+        setIsSidebarOpen(false);
+        setSelectedText('');
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={document.title} />
@@ -150,18 +167,77 @@ export default function Show({ document, pdfUrl }: Props) {
                     </div>
                 </div>
 
+                {/* Text Explanation Sidebar */}
+                <TextExplanationSidebar
+                    isOpen={isSidebarOpen}
+                    onClose={handleCloseSidebar}
+                    selectedText={selectedText}
+                    documentId={document.id}
+                />
+
                 <div className="grid gap-6 md:grid-cols-2">
                     <div className="flex flex-col gap-4">
                         <div className="rounded-lg border">
                             <div className="border-b bg-gray-50 p-4 dark:bg-gray-900">
                                 <h2 className="text-lg font-medium">PDF Preview</h2>
                             </div>
-                            <div className="aspect-[3/4] p-4">
-                                <iframe
-                                    src={`${pdfUrl}#toolbar=0`}
-                                    className="h-full w-full rounded border"
-                                    title={document.title}
-                                />
+                            <div className="flex flex-col gap-2">
+                                <div className="aspect-[3/4] p-4">
+                                    <iframe
+                                        ref={pdfIframeRef}
+                                        src={`${pdfUrl}#toolbar=0`}
+                                        className="h-full w-full rounded border"
+                                        title={document.title}
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-2 px-4 pb-4">
+                                    {showTextInput ? (
+                                        <div className="flex flex-col gap-2">
+                                            <textarea
+                                                value={manualText}
+                                                onChange={(e) => setManualText(e.target.value)}
+                                                placeholder="Copy and paste text from the PDF that you want explained..."
+                                                className="h-24 w-full rounded-md border border-gray-300 p-2 text-sm"
+                                            />
+                                            <div className="flex justify-end gap-2">
+                                                <Button
+                                                    onClick={() => setShowTextInput(false)}
+                                                    variant="outline"
+                                                    size="sm"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                                <Button
+                                                    onClick={() => {
+                                                        if (manualText.trim().length > 5) {
+                                                            setSelectedText(manualText);
+                                                            setIsSidebarOpen(true);
+                                                            setShowTextInput(false);
+                                                        } else {
+                                                            alert('Please enter at least 5 characters of text to get an explanation.');
+                                                        }
+                                                    }}
+                                                    size="sm"
+                                                >
+                                                    Get Explanation
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex justify-center">
+                                            <Button
+                                                onClick={() => {
+                                                    setShowTextInput(true);
+                                                    setManualText('');
+                                                }}
+                                                variant="outline"
+                                                size="sm"
+                                            >
+                                                Explain Text from PDF
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -212,7 +288,7 @@ export default function Show({ document, pdfUrl }: Props) {
                             </div>
                         </div>
 
-                        <div className="rounded-lg border">
+                      {/**  <div className="rounded-lg border">
                             <div className="border-b bg-gray-50 p-4 dark:bg-gray-900">
                                 <h2 className="text-lg font-medium">Visual Representation</h2>
                             </div>
@@ -266,6 +342,7 @@ export default function Show({ document, pdfUrl }: Props) {
 
                                                 <div className="relative rounded-md border p-4 dark:border-gray-700">
                                                     <MermaidDiagram
+                                                        className=""
                                                         chart={diagramData.diagram_code}
                                                         config={{
                                                             theme: window.document.documentElement.classList.contains('dark') ? 'dark' : 'default',
@@ -293,6 +370,7 @@ export default function Show({ document, pdfUrl }: Props) {
                                 )}
                             </div>
                         </div>
+                        */}
 
                         <div className="rounded-lg border p-4">
                             <h3 className="mb-2 font-medium">Document Information</h3>
@@ -370,6 +448,7 @@ function DocumentActions({ document }: DocumentActionsProps) {
                     <span className="sr-only">Actions</span>
                 </Button>
             </DropdownMenuTrigger>
+            {/**
             <DropdownMenuContent align="end">
                 {!showDiagramOptions ? (
                     <DropdownMenuItem
@@ -444,6 +523,7 @@ function DocumentActions({ document }: DocumentActionsProps) {
                     {deleting ? 'Deleting...' : 'Delete Document'}
                 </DropdownMenuItem>
             </DropdownMenuContent>
+            */}
         </DropdownMenu>
     );
 }

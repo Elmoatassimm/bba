@@ -4,6 +4,7 @@ use App\Http\Controllers\CoursePdfController;
 use App\Http\Controllers\LearningPlanController;
 use App\Http\Controllers\PdfDocumentController;
 use App\Http\Controllers\QuizController;
+use App\Http\Controllers\TextExplanationController;
 use App\Http\Controllers\VideoSummaryController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -41,7 +42,7 @@ Route::get('/', function () {
     Route::post('quiz-attempts/{quizAttempt}/learning-plans', [LearningPlanController::class, 'generate'])->name('learning-plans.generate');
     Route::delete('learning-plans/{learningPlan}', [LearningPlanController::class, 'destroy'])->name('learning-plans.destroy');
 
-    
+
     // Course PDF routes
     Route::get('course-pdfs', [CoursePdfController::class, 'index'])->name('course-pdfs.index');
     Route::get('course-pdfs/saved', [CoursePdfController::class, 'savedPdfs'])->name('course-pdfs.saved');
@@ -50,6 +51,9 @@ Route::get('/', function () {
     Route::delete('course-pdfs/{coursePdf}', [CoursePdfController::class, 'removeSavedPdf'])->name('course-pdfs.remove');
     Route::get('course-pdfs/view/{coursePdf}', [CoursePdfController::class, 'viewSavedPdf'])->name('course-pdfs.view');
     Route::post('course-pdfs/auth', [CoursePdfController::class, 'getResourcesWithAuth'])->name('course-pdfs.auth');
+
+    // Text Explanation route
+    Route::post('text-explanation', [TextExplanationController::class, 'explain'])->name('text-explanation.explain');
 //});
 
 // Test route for mermaid diagrams

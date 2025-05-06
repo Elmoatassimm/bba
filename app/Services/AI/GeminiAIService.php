@@ -1363,4 +1363,121 @@ PROMPT;
             'summary' => 'The AI generated a response but it was not in the expected format. Please try again.'
         ];
     }
+
+    /**
+     * Provide a contextual explanation for selected text from a PDF.
+     *
+     * @param string $selectedText The text selected by the user
+     * @param string|null $filePath Optional path to the PDF file for context
+     * @return string The explanation of the selected text
+     */
+    public function explainSelectedText(string $selectedText, ?string $filePath = null): string
+    {
+        try {
+            // Truncate selected text if it's too long (Gemini has token limits)
+            $selectedText = $this->truncateText($selectedText, 5000);
+
+            // Create the prompt for text explanation
+            $prompt = $this->createTextExplanationPrompt($selectedText, $filePath);
+
+            // Call Gemini API
+            $response = $this->callGeminiApi($prompt);
+
+            // If the response is too generic or empty, try again with a different approach
+            if (strpos($response, 'generic') !== false ||
+                strpos($response, 'lacks specific details') !== false ||
+                strlen($response) < 100) {
+
+                Log::info('Received generic explanation response, trying with a different prompt');
+
+                // Try with a different prompt that focuses on specific content
+                $alternativePrompt = $this->createAlternativeTextExplanationPrompt($selectedText);
+                $response = $this->callGeminiApi($alternativePrompt);
+            }
+
+            return $response;
+        } catch (Exception $e) {
+            Log::error('Error explaining selected text with Gemini: ' . $e->getMessage());
+
+            // Return a more user-friendly error message
+            return "Sorry, there was an error explaining the selected text: {$e->getMessage()}. Please try again with a different selection.";
+        }
+    }
+
+    /**
+     * Create a prompt for text explanation using LearnLM 2.0 Flash Model
+     *
+     * @param string $selectedText The text to explain
+     * @param string|null $filePath Optional path to the PDF file for context
+     * @return string The prompt
+     */
+    protected function createTextExplanationPrompt(string $selectedText, ?string $filePath = null): string
+    {
+        // Extract document title from file path if available
+        $documentTitle = '';
+        if ($filePath) {
+            $documentTitle = pathinfo($filePath, PATHINFO_FILENAME);
+            $documentTitle = str_replace('_', ' ', $documentTitle);
+            $documentTitle = ucwords($documentTitle);
+        }
+
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to provide a clear, concise, and educational explanation of a text selection from a document. You will adapt to the learner by focusing on explaining complex concepts in an accessible way, manage cognitive load by organizing your explanation logically, and deepen metacognition by helping the learner understand the context and significance of the text.
+
+I need you to explain the following selected text:
+
+```
+$selectedText
+```
+
+Document title: $documentTitle
+
+Instructions:
+1. Provide a clear, concise explanation of the selected text
+2. Define any technical terms, jargon, or complex concepts that appear in the text
+3. Explain the context and significance of the information if relevant
+4. If the text contains a process or method, break it down into steps
+5. If the text refers to theories, principles, or frameworks, briefly explain them
+6. If appropriate, provide 1-2 examples to illustrate the concepts
+7. Keep your explanation educational and focused on helping the learner understand
+8. Be specific and precise - avoid vague generalizations
+9. If the text is ambiguous or could have multiple interpretations, acknowledge this
+10. Keep your response under 300 words for readability
+
+Provide a helpful, educational explanation that would assist a student in understanding this text selection.
+PROMPT;
+    }
+
+    /**
+     * Create an alternative prompt for text explanation when the first attempt yields generic results
+     *
+     * @param string $selectedText The text to explain
+     * @return string The prompt
+     */
+    protected function createAlternativeTextExplanationPrompt(string $selectedText): string
+    {
+        return <<<PROMPT
+You are an expert educator using LearnLM 2.0 Flash Model. Your task is to provide a detailed, educational explanation of a specific text selection. Focus on making complex concepts accessible and providing concrete examples.
+
+I need you to analyze and explain this specific text selection:
+
+```
+$selectedText
+```
+
+Instructions:
+1. Start by identifying the main concept, argument, or information in the text
+2. Explain what this text means in clear, straightforward language
+3. Define any specialized terminology, jargon, or technical concepts
+4. Provide specific examples or analogies to illustrate the concepts
+5. Explain why this information is important or how it connects to broader concepts
+6. If this is a technical or scientific text, explain the underlying principles
+7. If this is a theoretical text, explain the key ideas and their implications
+8. DO NOT be vague or generic in your explanation
+9. DO NOT simply rephrase the text - provide actual insight and explanation
+10. Keep your response under 300 words for readability
+
+Provide a specific, concrete explanation that would help someone truly understand this text selection.
+PROMPT;
+    }
 }
