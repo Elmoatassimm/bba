@@ -36,6 +36,10 @@ class StreamingController extends Controller
             ]);
         }
 
+        // Get diagram options from request
+        $includeDiagram = $request->has('include_diagram') ? (bool)$request->include_diagram : true;
+        $diagramType = $request->diagram_type ?? 'mindmap';
+
         // In testing environment, process directly without streaming
         if (app()->environment('testing')) {
             try {
@@ -43,7 +47,7 @@ class StreamingController extends Controller
                 $filePath = Storage::disk('public')->path($pdfDocument->file_path);
 
                 // Process the document
-                $summary = $aiService->summarizePdf($filePath);
+                $summary = $aiService->summarizePdf($filePath, $includeDiagram, $diagramType);
 
                 // Update the document
                 $pdfDocument->update([
@@ -67,7 +71,7 @@ class StreamingController extends Controller
         }
 
         // For non-testing environments, create a streamed response
-        $response = new StreamedResponse(function () use ($pdfDocument, $aiService) {
+        $response = new StreamedResponse(function () use ($pdfDocument, $aiService, $includeDiagram, $diagramType) {
             // Set headers for SSE
             header('Content-Type: text/event-stream');
             header('Cache-Control: no-cache');
@@ -84,11 +88,18 @@ class StreamingController extends Controller
                 // First try with the configured AI service
                 try {
                     // Process the document with streaming
-                    $summary = $aiService->summarizePdf($filePath, function ($chunk) {
+                    // Note: The streaming callback is not compatible with the diagram generation
+                    // So we're using the regular method with diagram parameters
+                    $summary = $aiService->summarizePdf($filePath, $includeDiagram, $diagramType);
+
+                    // Simulate streaming by sending chunks of the summary
+                    $chunks = str_split($summary, 100); // Split into 100-character chunks
+                    foreach ($chunks as $chunk) {
                         // Send each chunk as an SSE event
                         echo "data: " . json_encode(['chunk' => $chunk]) . "\n\n";
                         flush();
-                    });
+                        usleep(50000); // Simulate delay between chunks (50ms)
+                    }
                 } catch (\Exception $e) {
                     // Log the error
                     \Illuminate\Support\Facades\Log::warning('Primary AI service failed: ' . $e->getMessage());
@@ -99,11 +110,15 @@ class StreamingController extends Controller
 
                     // Fall back to BasicAIService
                     $fallbackService = new \App\Services\AI\BasicAIService();
-                    $summary = $fallbackService->summarizePdf($filePath, function ($chunk) {
-                        // Send each chunk as an SSE event
+                    $summary = $fallbackService->summarizePdf($filePath);
+
+                    // Simulate streaming with the fallback service
+                    $chunks = str_split($summary, 100);
+                    foreach ($chunks as $chunk) {
                         echo "data: " . json_encode(['chunk' => $chunk]) . "\n\n";
                         flush();
-                    });
+                        usleep(50000);
+                    }
                 }
 
                 // Update the document with the complete summary
